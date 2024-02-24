@@ -1,4 +1,4 @@
-" Title:        Convert
+" Title:        Vim Alchemy
 " Description:  A plugin that provides a set of commands to convert text to
 " whatever
 " Last Change:  2024-07-02
