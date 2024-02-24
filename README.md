@@ -113,6 +113,7 @@ T.B.D.
 [MIT](https://choosealicense.com/licenses/mit/)
 
 ## TODO
+* Port vimscript to lua (?)
 * Stop cursor from resetting to start of line after command.
 * Improve getting input and returning output to something more smooth.
 * Instead of selecting classification, offer user to choose from a list of classifications.
