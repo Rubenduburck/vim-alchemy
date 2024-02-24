@@ -35,6 +35,21 @@ Stuff like:
 
 etc.
 
+## Installation
+
+Until I figure out how to do a proper build script, you can install this with lazy.nvim like so:
+```lua
+{
+	"rubenduburck/vim-alchemy",
+    build = function()
+        -- Your install directory
+        local install_dir = "~/.local/share/nvim/lazy/vim-alchemy"
+        local build_command = "cd " .. install_dir .. " && cargo build --release > /dev/null 2>&1"
+        os.execute(build_command)
+    end,
+}
+```
+
 ## Design
 
 This is a tool to be used during daily programming as a quick and dirty converter.
@@ -105,9 +120,6 @@ These tools are:
 * ```AlchFlatten N``` - flatten the input to depth N
 * ```AlchGenerate encoding N``` - generate N "zero" bytes of the encoding
 * ```AlchRandom encoding N``` - generate N random bytes of the encoding
-
-## Installation
-T.B.D.
 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)
