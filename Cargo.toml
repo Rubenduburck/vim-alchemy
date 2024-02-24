@@ -1,0 +1,25 @@
+[package]
+name = "vim-alchemy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+base64 = "0.21.7"
+bs58 = "0.5.0"
+neovim-lib = "0.6.1"
+rand = "0.8.5"
+regex = "1.10.3"
+rug = "1.24.0"
+thiserror = "1.0.56"
+tracing = { version = "0.1.40", features = ["release_max_level_off"] }
+tracing-subscriber = "0.3.18"
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name = "alchemy_benchmark"
+harness = false
+
