@@ -26,19 +26,19 @@ M.AlchPadRight = "pad_right"
 M.AlchStart = "start"
 M.AlchStop = "stop"
 
+-- TODO: what is the proper way to do this?
 M.dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
 M.bin = M.dir .. "../target/release/vim-alchemy"
 
+-- TODO: what is the proper way to do this?
 M.build = function()
-	local cmd = "cargo build --release"
+	local cmd = "cargo build --release > /dev/null 2>&1"
 	local handle = io.popen("cd " .. M.dir .. " && " .. cmd)
 	if handle == nil then
 		print("Failed to run " .. cmd)
 		return
 	end
-	local result = handle:read("*a")
 	handle:close()
-	print(result)
 end
 
 M.setup = function(opts)
