@@ -35,7 +35,7 @@ M.build = function()
 	local cmd = "cargo build --release > /dev/null 2>&1"
 	local handle = io.popen("cd " .. M.dir .. " && " .. cmd)
 	if handle == nil then
-		print("Failed to run " .. cmd)
+		vim.api.nvim_err_writeln("convert: cannot build")
 		return
 	end
 	handle:close()

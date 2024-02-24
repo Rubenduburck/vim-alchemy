@@ -42,13 +42,12 @@ Until I figure out how to do a proper build script, you can install this with la
 {
 	"rubenduburck/vim-alchemy",
     build = function()
-        -- Your install directory
-        local install_dir = "~/.local/share/nvim/lazy/vim-alchemy"
-        local build_command = "cd " .. install_dir .. " && cargo build --release > /dev/null 2>&1"
-        os.execute(build_command)
+        require("alchemy").build()
     end,
+    opts = {},
 }
 ```
+the ```build()``` function runs ```cargo build --release``` in the plugin directory.
 
 ## Design
 
