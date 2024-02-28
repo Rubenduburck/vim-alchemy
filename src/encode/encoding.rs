@@ -5,6 +5,7 @@ use super::{
 };
 use crate::encode::types::Brackets;
 use base64::Engine;
+use rand::Rng;
 use rug::Integer;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -156,12 +157,15 @@ impl Encoding {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TextEncoding {
     Utf(u8),
+    Ascii,
 }
 
 impl TextEncoding {
     pub fn encode(&self, v: &Decoded) -> Result<String, Error> {
         match self {
-            TextEncoding::Utf(8) => Ok(String::from_utf8_lossy(&v.to_le_bytes()).to_string()),
+            TextEncoding::Utf(8) | TextEncoding::Ascii => {
+                Ok(String::from_utf8_lossy(&v.to_le_bytes()).to_string())
+            }
             TextEncoding::Utf(16) => {
                 let utf_16_bytes: Vec<u16> = v
                     .to_le_bytes()

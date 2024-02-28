@@ -99,6 +99,7 @@ Some keywords are matched to common encodings, namely:
 * ```int``` -> decimal
 * ```bin``` -> binary
 * ```baseN``` -> base N, where N is a number between 2 and 62
+* ```utfN``` -> utf N, where N is 8 or 16
 
 keywords can be enclosed in brackets, e.g., ```[hex]```, to force the output to be an array of the desired encoding.
 If for a given encoding operation, the encoder runs out of encodings in an array, it will loop the array.
@@ -124,8 +125,6 @@ These tools are:
 [MIT](https://choosealicense.com/licenses/mit/)
 
 ## Roadmap
-* More versatile input/output
-* Alch to text encoding (ascii, utf8, utf16, utf32)
 * Pick classification from list
 
 ## ISSUES
