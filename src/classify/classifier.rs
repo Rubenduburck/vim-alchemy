@@ -27,11 +27,9 @@ impl Classifier {
         }
     }
 
-    /// Extracts an array from a string
-    /// Current approach is to iterate within the outer brackets and count the depth of the
-    /// brackets. If we see a separator at depth 0, we split the string at that
-    /// index.
-    /// TODO: this is a bit of a mess, could use some cleanup
+    /// Extracts an array from a string Current approach is to iterate within the outer brackets
+    /// and count the depth of the brackets. If we see a separator at depth 0, we split the string
+    /// at that index.
     pub fn extract_array<'a>(
         &'a self,
         sep: char,
@@ -66,7 +64,10 @@ impl Classifier {
                 .collect::<Vec<_>>()
                 .as_slice()
                 .windows(2)
+                // This line causes "," and ",\n" etc to be the same
                 .map(|w| inner[(if w[0] == 0 { 0 } else { w[0] + 1 })..w[1]].trim())
+                // This line removes empty entries caused by trailing separators etc
+                .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>()
         }
     }
