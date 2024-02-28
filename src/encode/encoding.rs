@@ -13,6 +13,7 @@ use rug::Integer;
 /// so we have to make a choice here, and the more reasonable choice
 /// seems to me that this is a decimal string and not a hex string
 pub enum Encoding {
+    Text(TextEncoding),
     Base(i32),
     Array(ArrayEncoding),
     Empty,
@@ -23,6 +24,7 @@ impl Encoding {
     const BINARY: &'static str = "bin";
     const BYTES: &'static str = "bytes";
     const BASE: &'static str = "base";
+    const UTF: &'static str = "utf";
     const HEX: &'static str = "hex";
 
     const BASE_64_ENGINE: base64::engine::general_purpose::GeneralPurpose =
@@ -60,6 +62,7 @@ impl Encoding {
         match self {
             Encoding::Array(v) => Encoding::encode_array(input, v, pad),
             Encoding::Base(n) => Encoding::encode_base_n(input, *n, pad.unwrap_or(false)),
+            Encoding::Text(t) => t.encode(input),
             Encoding::Empty => Ok("".into()),
         }
     }
@@ -147,6 +150,36 @@ impl Encoding {
             ),
             Some(true),
         )
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum TextEncoding {
+    Utf(u8),
+}
+
+impl TextEncoding {
+    pub fn encode(&self, v: &Decoded) -> Result<String, Error> {
+        match self {
+            TextEncoding::Utf(8) => Ok(String::from_utf8_lossy(&v.to_le_bytes()).to_string()),
+            TextEncoding::Utf(16) => {
+                let utf_16_bytes: Vec<u16> = v
+                    .to_le_bytes()
+                    .chunks(2)
+                    .map(|chunk| {
+                        chunk
+                            .iter()
+                            .enumerate()
+                            .map(|(i, b)| {
+                                u16::from(*b) * if i == 1 { 1 } else { u16::from(u8::MAX) }
+                            })
+                            .sum()
+                    })
+                    .collect();
+                Ok(String::from_utf16_lossy(&utf_16_bytes).to_string())
+            }
+            _ => Err(Error::UnsupportedEncoding),
+        }
     }
 }
 
@@ -257,6 +290,8 @@ impl Ord for Encoding {
                 (58, 64) => std::cmp::Ordering::Greater,
                 _ => a.cmp(b),
             },
+            (Encoding::Text(_), _) => std::cmp::Ordering::Greater,
+            (_, Encoding::Text(_)) => std::cmp::Ordering::Less,
         }
     }
 }
@@ -284,6 +319,10 @@ impl From<&str> for Encoding {
         // base64 -> Base(64)
         } else if let Some(stripped) = s.strip_prefix(Self::BASE) {
             Encoding::Base(stripped.parse::<i32>().unwrap_or(10))
+
+        // utf8 -> Utf(8)
+        } else if let Some(stripped) = s.strip_prefix(Self::UTF) {
+            Encoding::Text(TextEncoding::Utf(stripped.parse::<u8>().unwrap_or(8)))
 
         // hex -> Base(16)
         } else {
@@ -402,14 +441,29 @@ mod tests {
     }
 
     #[test]
+    fn test_encode_utf8() {
+        let test_input = Decoded::Bytes(vec![0x6f, 0x6b, 0x20, 0x6c, 0x6f, 0x6c]);
+        let result = Encoding::Text(TextEncoding::Utf(8)).encode(&test_input, Some(false));
+        println!("{:?}", result);
+    }
+
+    #[test]
+    fn test_encode_utf16() {
+        let test_input = Decoded::Bytes(vec![0x0, 0x88, 0x0, 0xc6]);
+        let result = Encoding::Text(TextEncoding::Utf(16)).encode(&test_input, Some(false));
+        println!("{:?}", result);
+    }
+
+    #[test]
     fn test_encode_array() {
         let test_input = Decoded::Array(vec![
             Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
             Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
         ]);
-        let result = Encoding::Array(ArrayEncoding::from(
-            vec![Encoding::Base(16), Encoding::Base(10)],
-        ))
+        let result = Encoding::Array(ArrayEncoding::from(vec![
+            Encoding::Base(16),
+            Encoding::Base(10),
+        ]))
         .encode(&test_input, Some(false));
         assert_eq!(result.unwrap(), "[0x1234567890, 78187493520]");
     }

@@ -10,4 +10,6 @@ pub enum Error {
     Bs58Error(#[from] bs58::decode::Error),
     #[error("Unsupported base: {0}")]
     UnsupportedBase(i32),
+    #[error("Unsupported Encoding")]
+    UnsupportedEncoding,
 }
