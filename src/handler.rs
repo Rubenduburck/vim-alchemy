@@ -53,19 +53,30 @@ impl EventHandler {
     }
 
     pub fn escape(message: &str) -> String {
-        const SPECIAL_CHARS: &str = "\\^$*+?.()|{}[]";
-        SPECIAL_CHARS.chars().fold(message.to_string(), |acc, c| {
-            acc.replace(c, &format!("\\{}", c))
-        })
+        const SPECIAL_CHARS: &str = "\n\\^$*+?.()|{}[]";
+        message
+            .chars()
+            .fold(vec![], |mut acc, c| {
+                if SPECIAL_CHARS.contains(c) {
+                    acc.extend(c.escape_default())
+                } else {
+                    acc.push(c)
+                }
+                acc
+            })
+            .into_iter()
+            .collect()
     }
 
     pub fn replace(&mut self, from: &str, to: &str) {
-        info!("replacing {} with message {}", from, to);
-        match self.nvim.command(&format!(
-            "'<,'>s/{}/{}",
-            Self::escape(from),
-            Self::escape(to)
-        )) {
+        let from = Self::escape(from);
+        let to = Self::escape(to);
+        let cmd = format!("'<,'>s/{}/{}", from, to,);
+        info!(
+            "replacing {} with message {} with command {}",
+            from, to, cmd
+        );
+        match self.nvim.command(&cmd) {
             Ok(_) => info!("Replaced"),
             Err(e) => error!("Error: {}", e),
         }
@@ -375,5 +386,18 @@ impl EventHandler {
 impl Default for EventHandler {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EventHandler;
+
+
+    #[test]
+    fn test_escape() {
+        let test = "1\n2\n3";
+        let escaped = EventHandler::escape(test);
+        assert_eq!(escaped, "1\\n2\\n3");
     }
 }
