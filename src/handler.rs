@@ -53,15 +53,17 @@ impl EventHandler {
     }
 
     pub fn escape(message: &str) -> String {
-        const SPECIAL_CHARS: &str = "\n\\^$*+?.()|{}[]";
+        const SPECIAL_CHARS: &str = "^$*+?.()|{}[]";
         message
             .chars()
             .fold(vec![], |mut acc, c| {
-                if SPECIAL_CHARS.contains(c) {
+                if c == '\n' {
                     acc.extend(c.escape_default())
+                } else if SPECIAL_CHARS.contains(c) {
+                    acc.extend(['\\', c])
                 } else {
                     acc.push(c)
-                }
+                };
                 acc
             })
             .into_iter()
@@ -396,8 +398,8 @@ mod tests {
 
     #[test]
     fn test_escape() {
-        let test = "1\n2\n3";
+        let test = "[1\n2\n3]";
         let escaped = EventHandler::escape(test);
-        assert_eq!(escaped, "1\\n2\\n3");
+        assert_eq!(escaped, "\\[1\\n2\\n3\\]");
     }
 }
