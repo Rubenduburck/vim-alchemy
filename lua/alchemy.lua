@@ -9,7 +9,7 @@ local function get_visual_selection()
 	if #lines == 0 then
 		return ""
 	end
-	lines[#lines] = lines[#lines]:sub(1, column_end - (vim.o.selection == "inclusive" and 1 or 2))
+	lines[#lines] = lines[#lines]:sub(1, column_end + 1 - (vim.o.selection == "inclusive" and 1 or 2))
 	lines[1] = lines[1]:sub(column_start)
 	return table.concat(lines, "\n")
 end
@@ -28,7 +28,7 @@ M.AlchStop = "stop"
 
 -- TODO: what is the proper way to do this?
 M.dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
-M.bin = M.dir .. "../target/release/vim-alchemy"
+M.bin = M.dir .. "../target/debug/vim-alchemy"
 
 -- TODO: what is the proper way to do this?
 M.build = function()

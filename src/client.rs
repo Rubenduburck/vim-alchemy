@@ -128,33 +128,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_client_hex_from_any() {
-        const TEST: &str = "0x12345678900000";
-
-        let client = Client::new();
-        let result = client
-            .classify_and_convert_all("bytes", TEST)
-            .expect("Failed to convert");
-        for r in result {
-            println!("{:?}", r);
-        }
-
-        const TEST_2: &str = "[0x0, 0x0, 0x90, 0x78, 0x56, 0x34, 0x12]";
-        let result = client
-            .classify_and_convert_all("hex", TEST_2)
-            .expect("Failed to convert");
-        for r in result {
-            println!("{:?}", r);
-        }
-    }
-
-    #[test]
     fn test_client_hex_from_bytes() {
         let client = Client::new();
-        let test_set = ["[0x0, 0x0, 0x90, 0x78, 0x56, 0x34, 0x12]"];
+        let test_set = [
+            "[\n0x0,\n 0x0,\n 0x90,\n 0x78,\n 0x56,\n 0x34,\n 0x12\n]",
+            "[0x0, 0x0, 0x90, 0x78, 0x56, 0x34, 0x12]",
+        ];
         let expected = vec!["0x12345678900000"];
 
-        for (test, expect) in test_set.iter().zip(expected) {
+        for (test, expect) in test_set.iter().zip(expected.into_iter().cycle()) {
             let converted = client
                 .classify_and_convert("hex", test)
                 .expect("Failed to convert");

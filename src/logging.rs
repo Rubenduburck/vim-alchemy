@@ -6,8 +6,9 @@ use crate::error::ConvertError;
 pub fn setup_tracing() -> Result<(), ConvertError> {
     // get home dir from env
     let home_dir = std::env::var("HOME")?; 
-    let log_file_name = format!("{}/.local/share/nvim/convert.log", home_dir);
+    let log_file_name = format!("{}/.local/share/nvim/alchemy.log", home_dir);
     let file = OpenOptions::new()
+        .create(true)
         .append(true)
         .open(log_file_name)?;
     let debug_log = tracing_subscriber::fmt::layer().with_writer(Arc::new(file));
