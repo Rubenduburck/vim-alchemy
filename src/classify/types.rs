@@ -80,6 +80,7 @@ impl Classification<'_> {
             Classification::Array(v) => Encoding::Array(ArrayEncoding::new(
                 v.collapse().iter().map(|c| c.encoding()).collect(),
                 Some(v.brackets.clone()),
+                Some(v.separator),
             )),
             Classification::Integer(i) => Encoding::Base(i.base),
             Classification::Empty => Encoding::Empty,

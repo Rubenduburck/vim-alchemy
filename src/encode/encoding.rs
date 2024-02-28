@@ -1,4 +1,8 @@
-use super::{decoding::Decoded, error::Error};
+use super::{
+    decoding::Decoded,
+    error::Error,
+    types::{Bracket, Separator},
+};
 use crate::encode::types::Brackets;
 use base64::Engine;
 use rug::Integer;
@@ -150,13 +154,19 @@ impl Encoding {
 pub struct ArrayEncoding {
     pub values: Vec<Encoding>,
     pub brackets: Brackets,
+    pub separator: Separator,
 }
 
 impl ArrayEncoding {
-    pub fn new(values: Vec<Encoding>, brackets: Option<Brackets>) -> Self {
+    pub fn new(
+        values: Vec<Encoding>,
+        brackets: Option<Brackets>,
+        separator: Option<Separator>,
+    ) -> Self {
         Self {
             values,
             brackets: brackets.unwrap_or_default(),
+            separator: separator.unwrap_or_default(),
         }
     }
 
@@ -171,13 +181,23 @@ impl ArrayEncoding {
     }
 
     pub fn flatten(&self) -> Self {
-        Self::new(self.flattened_values(), Some(self.brackets.clone()))
+        Self::new(
+            self.flattened_values(),
+            Some(self.brackets.clone()),
+            Some(self.separator),
+        )
     }
 
     pub fn brackets(&self) -> [String; 2] {
         [
-            self.brackets.open().to_string(),
-            self.brackets.close().to_string(),
+            self.brackets
+                .open()
+                .map(|c| c.to_string())
+                .unwrap_or_default(),
+            self.brackets
+                .close()
+                .map(|c| c.to_string())
+                .unwrap_or_default(),
         ]
     }
 
@@ -188,7 +208,14 @@ impl ArrayEncoding {
 
 impl From<Vec<Encoding>> for ArrayEncoding {
     fn from(values: Vec<Encoding>) -> Self {
-        Self::new(values, None)
+        Self::new(
+            values,
+            Some(Brackets::new(
+                Some(Bracket::default()),
+                Some(Bracket::default()),
+            )),
+            Some(Separator::default()),
+        )
     }
 }
 
@@ -248,8 +275,8 @@ impl From<&str> for Encoding {
         if s.starts_with('[') && s.ends_with(']') {
             Encoding::Array(
                 s[1..s.len() - 1]
-                    .split(", ")
-                    .map(Encoding::from)
+                    .split(',')
+                    .map(|e| Encoding::from(e.trim()))
                     .collect::<Vec<_>>()
                     .into(),
             )
@@ -380,9 +407,8 @@ mod tests {
             Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
             Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
         ]);
-        let result = Encoding::Array(ArrayEncoding::new(
+        let result = Encoding::Array(ArrayEncoding::from(
             vec![Encoding::Base(16), Encoding::Base(10)],
-            None,
         ))
         .encode(&test_input, Some(false));
         assert_eq!(result.unwrap(), "[0x1234567890, 78187493520]");
@@ -403,11 +429,14 @@ mod tests {
                         Encoding::Array(ArrayEncoding::new(
                             vec![Encoding::Base(10), Encoding::Base(10), Encoding::Base(10)],
                             None,
+                            None,
                         )),
                     ],
                     None,
+                    None,
                 )),
             ],
+            None,
             None,
         ));
         let flattened = encoding.flatten();
@@ -444,11 +473,14 @@ mod tests {
                         Encoding::Array(ArrayEncoding::new(
                             vec![Encoding::Base(10), Encoding::Base(10), Encoding::Base(10)],
                             None,
+                            None,
                         )),
                     ],
                     None,
+                    None,
                 )),
             ],
+            None,
             None,
         ));
         let result = encoding.encode(&test_input, Some(false)).unwrap();
@@ -481,11 +513,14 @@ mod tests {
                         Encoding::Array(ArrayEncoding::new(
                             vec![Encoding::Base(10), Encoding::Base(10), Encoding::Base(10)],
                             None,
+                            None,
                         )),
                     ],
                     None,
+                    None,
                 )),
             ],
+            None,
             None,
         ));
         let result = encoding.flatten().encode(&test_input, Some(false)).unwrap();
@@ -501,6 +536,7 @@ mod tests {
         let result = Encoding::Array(ArrayEncoding::new(
             vec![Encoding::Base(16), Encoding::Base(10)],
             Some(Bracket::Round.into()),
+            Some(Separator::new('\n')),
         ))
         .encode(&test_input, Some(false));
         assert_eq!(result.unwrap(), "(0x1234567890, 78187493520)");

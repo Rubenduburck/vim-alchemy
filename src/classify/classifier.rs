@@ -35,12 +35,15 @@ impl Classifier {
     pub fn extract_array<'a>(
         &'a self,
         sep: char,
-        open: char,
-        close: char,
+        open: Option<char>,
+        close: Option<char>,
     ) -> impl 'a + Fn(&'a str) -> Vec<&'a str> {
         move |s: &'a str| {
-            let inner =
-                &s[s.find(open).map_or(0, |i| i + 1)..s.rfind(close).map_or(s.len(), |i| i)];
+            let inner_start = open.map(|o| s.find(o).map_or(0, |i| i + 1)).unwrap_or(0);
+            let inner_end = close
+                .map(|c| s.rfind(c).map_or(s.len(), |i| i))
+                .unwrap_or(s.len());
+            let inner = &s[inner_start..inner_end];
             inner
                 .chars()
                 .enumerate()
@@ -97,9 +100,8 @@ impl Classifier {
                 let separator: Separator = separator.map_or(Separator::default(), |s| s.into());
                 let brackets: Brackets = brackets.map_or(Brackets::default(), |b| b.into());
                 let values =
-                    self.extract_array(separator.to_char(), brackets.open(), brackets.close())(
-                        candidate,
-                    );
+                    self.extract_array(separator.to_char(), brackets.open(), brackets.close())(candidate);
+
                 Classification::Array(ArrayClassification::new(
                     values.iter().map(|v| self.classify(v)).collect(),
                     brackets,
@@ -129,19 +131,19 @@ mod tests {
     fn test_extract_array() {
         const ARRAY_STRING: &str = "[1, 2, 3, 4]";
         let cl = Classifier::new();
-        let extracted = cl.extract_array(',', '[', ']')(ARRAY_STRING);
+        let extracted = cl.extract_array(',', Some('['), Some(']'))(ARRAY_STRING);
         assert_eq!(extracted, vec!["1", "2", "3", "4"]);
 
         const ARRAY_STRING_2: &str = "[1, 2, 3, [4, 5, 6, [7, 8, 9]]]";
-        let extracted = cl.extract_array(',', '[', ']')(ARRAY_STRING_2);
+        let extracted = cl.extract_array(',', Some('['), Some(']'))(ARRAY_STRING_2);
         assert_eq!(extracted, vec!["1", "2", "3", "[4, 5, 6, [7, 8, 9]]"]);
 
         const ARRAY_STRING_3: &str = "[[1, 2, 3], [4, 5, 6], [7, 8, 9]]";
-        let extracted = cl.extract_array(',', '[', ']')(ARRAY_STRING_3);
+        let extracted = cl.extract_array(',', Some('['), Some(']'))(ARRAY_STRING_3);
         assert_eq!(extracted, vec!["[1, 2, 3]", "[4, 5, 6]", "[7, 8, 9]"]);
 
         const ARRAY_STRING_4: &str = "[1,2,3,[4,5,6,[7,8,9]]]";
-        let extracted = cl.extract_array(',', '[', ']')(ARRAY_STRING_4);
+        let extracted = cl.extract_array(',', Some('['), Some(']'))(ARRAY_STRING_4);
         assert_eq!(extracted, vec!["1", "2", "3", "[4,5,6,[7,8,9]]"]);
     }
 
