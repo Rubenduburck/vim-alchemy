@@ -28,7 +28,7 @@ M.AlchStop = "stop"
 
 -- TODO: what is the proper way to do this?
 M.dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
-M.bin = M.dir .. "../target/debug/vim-alchemy"
+M.bin = M.dir .. "../target/release/vim-alchemy"
 
 -- TODO: what is the proper way to do this?
 M.build = function()
@@ -42,7 +42,6 @@ M.build = function()
 end
 
 M.setup = function(opts)
-    -- print binary
 	M.configureCommands()
 	M.connect()
 end
