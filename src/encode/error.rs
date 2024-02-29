@@ -12,4 +12,6 @@ pub enum Error {
     UnsupportedBase(i32),
     #[error("Unsupported Encoding")]
     UnsupportedEncoding,
+    #[error("Neovim error: {0}")]
+    NeovimLib(#[from] neovim_lib::neovim::CallError),
 }

@@ -1,6 +1,6 @@
 use neovim_lib::{Neovim, NeovimApi, Session, Value};
 
-use crate::client::Client;
+use crate::{client::Client, encode::error::Error};
 
 use tracing::{error, info};
 
@@ -70,7 +70,7 @@ impl EventHandler {
             .collect()
     }
 
-    pub fn replace(&mut self, from: &str, to: &str) {
+    pub fn substitute(&mut self, from: &str, to: &str) -> Result<(), Error> {
         let from = Self::escape(from);
         let to = Self::escape(to);
         let cmd = format!("'<,'>s/{}/{}", from, to,);
@@ -78,18 +78,23 @@ impl EventHandler {
             "replacing {} with message {} with command {}",
             from, to, cmd
         );
-        match self.nvim.command(&cmd) {
-            Ok(_) => info!("Replaced"),
-            Err(e) => error!("Error: {}", e),
-        }
+        Ok(self.nvim.command(&cmd)?)
     }
 
-    pub fn put_after_cursor(&mut self, message: &str) {
+    pub fn replace(&mut self, from: &str, to: &str) -> Result<(), Error> {
+        info!("replacing {} with message {}", from, to);
+        self.substitute(from, to)?;
+        self.position_cursor_before_selection()
+    }
+
+    pub fn put_after_cursor(&mut self, _message: &str) -> Result<(), Error> {
         info!("putting message at cursor");
-        match self.nvim.command(&format!("normal a{}", message)) {
-            Ok(_) => info!("Put at cursor"),
-            Err(e) => error!("Error: {}", e),
-        }
+        Ok(self.nvim.command("normal a")?)
+    }
+
+    pub fn position_cursor_before_selection(&mut self) -> Result<(), Error> {
+        info!("positioning cursor before selection");
+        Ok(self.nvim.command("normal '<")?)
     }
 
     pub fn recv(&mut self) {
@@ -148,7 +153,11 @@ impl EventHandler {
         };
         info!("input: {}", input);
         match self.client.classify_and_convert(encoding, input) {
-            Ok(result) => self.replace(input, &result),
+            Ok(result) => {
+                if let Err(e) = self.replace(input, &result) {
+                    error!("Error: {}", e)
+                }
+            }
             Err(e) => error!("Error: {}", e),
         }
     }
@@ -167,7 +176,11 @@ impl EventHandler {
         };
         info!("input: {}", input);
         match self.client.flatten_array(input) {
-            Ok(result) => self.replace(input, &result),
+            Ok(result) => {
+                if let Err(e) = self.replace(input, &result) {
+                    error!("Error: {}", e)
+                }
+            }
             Err(e) => error!("Error: {}", e),
         }
     }
@@ -198,7 +211,11 @@ impl EventHandler {
         };
         info!("input: {}", input);
         match self.client.chunk_array(chunk_count as usize, input) {
-            Ok(result) => self.replace(input, &result),
+            Ok(result) => {
+                if let Err(e) = self.replace(input, &result) {
+                    error!("Error: {}", e)
+                }
+            }
             Err(e) => error!("Error: {}", e),
         }
     }
@@ -228,7 +245,11 @@ impl EventHandler {
         };
         info!("input: {}", input);
         match self.client.reverse_array(input, depth as usize) {
-            Ok(result) => self.replace(input, &result),
+            Ok(result) => {
+                if let Err(e) = self.replace(input, &result) {
+                    error!("Error: {}", e)
+                }
+            }
             Err(e) => error!("Error: {}", e),
         }
     }
@@ -258,7 +279,11 @@ impl EventHandler {
         };
         info!("input: {}", input);
         match self.client.rotate_array(input, rotation) {
-            Ok(result) => self.replace(input, &result),
+            Ok(result) => {
+                if let Err(e) = self.replace(input, &result) {
+                    error!("Error: {}", e)
+                }
+            }
             Err(e) => error!("Error: {}", e),
         }
     }
@@ -289,7 +314,11 @@ impl EventHandler {
             }
         };
         match self.client.generate(encoding, number) {
-            Ok(result) => self.put_after_cursor(&result),
+            Ok(result) => {
+                if let Err(e) = self.put_after_cursor(&result) {
+                    error!("Error: {}", e)
+                }
+            }
             Err(e) => error!("Error: {}", e),
         }
     }
@@ -319,7 +348,11 @@ impl EventHandler {
             }
         };
         match self.client.random(encoding, number) {
-            Ok(result) => self.put_after_cursor(&result),
+            Ok(result) => {
+                if let Err(e) = self.put_after_cursor(&result) {
+                    error!("Error: {}", e)
+                }
+            }
             Err(e) => error!("Error: {}", e),
         }
     }
@@ -349,7 +382,11 @@ impl EventHandler {
             }
         };
         match self.client.pad_left(padding, input) {
-            Ok(result) => self.replace(input, &result),
+            Ok(result) => {
+                if let Err(e) = self.replace(input, &result) {
+                    error!("Error: {}", e)
+                }
+            }
             Err(e) => error!("Error: {}", e),
         }
     }
@@ -379,7 +416,11 @@ impl EventHandler {
             }
         };
         match self.client.pad_right(padding, input) {
-            Ok(result) => self.replace(input, &result),
+            Ok(result) => {
+                if let Err(e) = self.replace(input, &result) {
+                    error!("Error: {}", e)
+                }
+            }
             Err(e) => error!("Error: {}", e),
         }
     }
@@ -394,7 +435,6 @@ impl Default for EventHandler {
 #[cfg(test)]
 mod tests {
     use super::EventHandler;
-
 
     #[test]
     fn test_escape() {

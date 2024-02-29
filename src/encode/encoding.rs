@@ -5,7 +5,6 @@ use super::{
 };
 use crate::encode::types::Brackets;
 use base64::Engine;
-use rand::Rng;
 use rug::Integer;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
