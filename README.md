@@ -127,5 +127,3 @@ These tools are:
 ## Roadmap
 * Pick classification from list
 
-## ISSUES
-* Stop cursor from resetting to start of line after command.
