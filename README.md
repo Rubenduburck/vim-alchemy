@@ -55,6 +55,8 @@ I don't like thinking, especially about:
 2. Explicitly telling the plugin what I want it to do
 3. Arbitrary limits on the input/output
 
+Therefore I chose this three step classification - decoding - encoding pipeline
+
 ### Classification
 
 Currently, the plugin will try to classify the following input types:
