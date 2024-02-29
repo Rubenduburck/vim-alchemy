@@ -50,13 +50,10 @@ Until I figure out how to do a proper build script, you can install this with la
 the ```build()``` function runs ```cargo build --release``` in the plugin directory.
 
 ## Design
-
-This is a tool to be used during daily programming as a quick and dirty converter.
-This means that the input is not always going to be perfect, and the plugin should be able to handle that.
-Also, if I don't want to explicitly tell the plugin what the input is, it should be able to guess.
-Moreover, I did not want to put in arbitrary limits on the input, so the plugin should be able to handle any input size.
-
-To meet these goals I chose a three step process:
+I don't like thinking, especially about:
+1. Pre-formatting my input
+2. Explicitly telling the plugin what I want it to do
+3. Arbitrary limits on the input/output
 
 ### Classification
 
