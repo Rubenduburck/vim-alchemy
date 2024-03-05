@@ -9,7 +9,8 @@ Vim-alchemy is a personal plugin that does some stuff that I would otherwise was
 
 Stuff like:
 ```vim
-:Alch hex 1000000000000000000
+" with 1000000000000000000 highlighted
+:Alch hex 
 " output: 0xde0b6b3a7640000
 ```
 
@@ -138,5 +139,5 @@ These tools are:
 * Pick classification from list
 
 ## Known Issues
-* Improper handling of some special regex characters
+* Hashing of strings longer than 32 bytes is not supported
 
