@@ -434,6 +434,13 @@ impl EventHandler {
     fn handle_hash(&mut self, values: Vec<Value>) {
         info!("Hash");
         let mut args = values.iter();
+        let algo = match args.next() {
+            Some(input) => input.as_str().expect("Error: Invalid input"),
+            None => {
+                error!("Error: No input provided");
+                return;
+            }
+        };
         let input = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
@@ -441,7 +448,7 @@ impl EventHandler {
                 return;
             }
         };
-        match self.client.hash(input) {
+        match self.client.hash(algo, input) {
             Ok(result) => {
                 if let Err(e) = self.replace(input, &result) {
                     error!("Error: {}", e)

@@ -116,7 +116,7 @@ impl Client {
         Ok(encoded)
     }
 
-    pub fn hash(&self, input: &str) -> Result<String, ConvertError> {
+    pub fn hash(&self, _algo: &str, input: &str) -> Result<String, ConvertError> {
         let best = self.classify_best_match(input);
         let encoded = if best.error() > 0 {
             let decoded = Decoded::from_be_bytes(input.as_bytes());
@@ -281,9 +281,9 @@ mod tests {
     #[test]
     fn test_hash() {
         let client = Client::new();
-        let hashed = client.hash("test_key").expect("Failed to convert");
+        let hashed = client.hash("test", "test_key").expect("Failed to convert");
         assert_eq!(hashed, "0xad62e20f6955fd04f45eef123e61f3c74ce24e1ce4f6ab270b886cd860fd65ac");
-        let hashed = client.hash("0x1234").expect("Failed to convert");
+        let hashed = client.hash("test", "0x1234").expect("Failed to convert");
         assert_eq!(hashed, "0x56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432");
     }
 }
