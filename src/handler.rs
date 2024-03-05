@@ -15,6 +15,7 @@ pub enum Message {
     PadLeft,
     PadRight,
     Stop,
+    Hash,
     Unknown(String),
 }
 
@@ -31,6 +32,7 @@ impl From<String> for Message {
             "pad_left" => Message::PadLeft,
             "pad_right" => Message::PadRight,
             "stop" => Message::Stop,
+            "hash" => Message::Hash,
             _ => Message::Unknown(event),
         }
     }
@@ -126,6 +128,7 @@ impl EventHandler {
             Message::Random => self.handle_random(values),
             Message::PadLeft => self.handle_pad_left(values),
             Message::PadRight => self.handle_pad_right(values),
+            Message::Hash => self.handle_hash(values),
             _ => {}
         }
     }
@@ -416,6 +419,29 @@ impl EventHandler {
             }
         };
         match self.client.pad_right(padding, input) {
+            Ok(result) => {
+                if let Err(e) = self.replace(input, &result) {
+                    error!("Error: {}", e)
+                }
+            }
+            Err(e) => error!("Error: {}", e),
+        }
+    }
+
+    /// Hash the given input
+    /// If the input is classified as some type, hash the bytes
+    /// otherwise, hash as utf8
+    fn handle_hash(&mut self, values: Vec<Value>) {
+        info!("Hash");
+        let mut args = values.iter();
+        let input = match args.next() {
+            Some(input) => input.as_str().expect("Error: Invalid input"),
+            None => {
+                error!("Error: No input provided");
+                return;
+            }
+        };
+        match self.client.hash(input) {
             Ok(result) => {
                 if let Err(e) = self.replace(input, &result) {
                     error!("Error: {}", e)
