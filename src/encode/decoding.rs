@@ -80,6 +80,11 @@ impl<'a> From<&Classification<'a>> for Decoded {
     }
 }
 
+trait Hasher {
+    fn update(&mut self, input: &[u8]);
+    fn finalize(self) -> [u8; 32];
+}
+
 impl Decoded {
     pub fn len(&self) -> usize {
         match self {
@@ -135,7 +140,7 @@ impl Decoded {
         }
     }
 
-    pub fn hash(&self) -> Self {
+    pub fn hash(&self, hasher: &impl Hasher) -> Self {
         let mut hasher = Keccak256::new();
         match self {
             Decoded::Array(a) => {

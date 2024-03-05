@@ -1,7 +1,7 @@
 use super::{
     decoding::Decoded,
     error::Error,
-    types::{Bracket, Separator},
+    types::{Bracket, Separator}, hashing::Hasher,
 };
 use crate::encode::types::Brackets;
 use base64::Engine;
@@ -17,6 +17,7 @@ pub enum Encoding {
     Base(i32),
     Array(ArrayEncoding),
     Empty,
+    Hash(Hasher),
 }
 
 impl Encoding {
@@ -26,6 +27,8 @@ impl Encoding {
     const BASE: &'static str = "base";
     const UTF: &'static str = "utf";
     const HEX: &'static str = "hex";
+    const KECCAK: &'static str = "keccak";
+    const SHA: &'static str = "sha";
 
     const BASE_64_ENGINE: base64::engine::general_purpose::GeneralPurpose =
         base64::engine::general_purpose::GeneralPurpose::new(
@@ -63,6 +66,7 @@ impl Encoding {
             Encoding::Array(v) => Encoding::encode_array(input, v, pad),
             Encoding::Base(n) => Encoding::encode_base_n(input, *n, pad.unwrap_or(false)),
             Encoding::Text(t) => t.encode(input),
+            Encoding::Hash(h) => Encoding::Base(16).encode(&(h.hash(input)?), pad),
             Encoding::Empty => Ok("".into()),
         }
     }
@@ -135,6 +139,14 @@ impl Encoding {
                 .join(", "),
         ))
     }
+
+    fn encode_hash(
+        input: &Decoded,
+        algorithm: &str,
+    ) -> Result<String, Error> {
+        Ok("test".into())
+    }
+
 
     pub fn generate(&self, length: usize) -> Result<String, Error> {
         self.encode(&Decoded::from_le_bytes(&vec![0; length]), Some(true))
@@ -275,8 +287,7 @@ impl PartialOrd for ArrayEncoding {
     }
 }
 
-// Since this implies an error, we should return bigger errors as greater
-// Some ugly stuff in here, hardcoded priority for base 10 and base 16
+// Some ugly stuff in here, hardcoded priorities
 // should probably find a better solution for this
 impl Ord for Encoding {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -293,6 +304,8 @@ impl Ord for Encoding {
                 (58, 64) => std::cmp::Ordering::Greater,
                 _ => a.cmp(b),
             },
+            (Encoding::Hash(_), _) => std::cmp::Ordering::Greater,
+            (_, Encoding::Hash(_)) => std::cmp::Ordering::Less,
             (Encoding::Text(_), _) => std::cmp::Ordering::Greater,
             (_, Encoding::Text(_)) => std::cmp::Ordering::Less,
         }

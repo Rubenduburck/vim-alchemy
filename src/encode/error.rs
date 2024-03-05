@@ -14,4 +14,7 @@ pub enum Error {
     UnsupportedEncoding,
     #[error("Neovim error: {0}")]
     NeovimLib(#[from] neovim_lib::neovim::CallError),
+
+    #[error("Unsupported hash")]
+    UnsupportedHash,
 }
