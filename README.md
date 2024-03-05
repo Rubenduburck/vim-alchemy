@@ -126,3 +126,6 @@ These tools are:
 ## Roadmap
 * Pick classification from list
 
+## Known Issues
+* Improper handling of some special regex characters
+
