@@ -70,7 +70,7 @@ M.configureCommands = function()
 	vim.cmd('command! -nargs=+ AlchRandom :lua require("alchemy").random(<f-args>)')
 	vim.cmd('command! -range -nargs=+ AlchPadLeft :lua require("alchemy").pad_left(<f-args>)')
 	vim.cmd('command! -range -nargs=+ AlchPadRight :lua require("alchemy").pad_right(<f-args>)')
-    vim.cmd('command! -range -nargs=+ AlchHash :lua require("alchemy").hash(<f-args>)')
+    vim.cmd('command! -range -nargs=* AlchHash :lua require("alchemy").hash(<f-args>)')
 	vim.cmd('command! AlchStart :lua require("alchemy").start()')
 	vim.cmd('command! AlchStop :lua require("alchemy").stop()')
 end

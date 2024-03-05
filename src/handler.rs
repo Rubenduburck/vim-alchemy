@@ -2,7 +2,7 @@ use neovim_lib::{Neovim, NeovimApi, Session, Value};
 
 use crate::{client::Client, encode::error::Error};
 
-use tracing::{error, info};
+use tracing::{error, info, debug};
 
 pub enum Message {
     ClassifyAndConvert,
@@ -448,6 +448,8 @@ impl EventHandler {
                 return;
             }
         };
+        debug!("algo: {}", algo);
+        debug!("input: {}", input);
         match self.client.hash(algo, input) {
             Ok(result) => {
                 if let Err(e) = self.replace(input, &result) {

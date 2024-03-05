@@ -121,7 +121,6 @@ impl Client {
         let encoded = if best.error() > 0 {
             let decoded = Decoded::from_be_bytes(input.as_bytes());
             let hash = decoded.hash();
-            println!("{:?}", hash);
             Encoding::Base(16).encode(&hash, Some(true))?
         } else {
             let decoded = Decoded::from(&best);
