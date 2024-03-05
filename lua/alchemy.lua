@@ -25,6 +25,7 @@ M.AlchPadLeft = "pad_left"
 M.AlchPadRight = "pad_right"
 M.AlchStart = "start"
 M.AlchStop = "stop"
+M.AlchHash = "hash"
 
 -- TODO: what is the proper way to do this?
 M.dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
@@ -69,6 +70,7 @@ M.configureCommands = function()
 	vim.cmd('command! -nargs=+ AlchRandom :lua require("alchemy").random(<f-args>)')
 	vim.cmd('command! -range -nargs=+ AlchPadLeft :lua require("alchemy").pad_left(<f-args>)')
 	vim.cmd('command! -range -nargs=+ AlchPadRight :lua require("alchemy").pad_right(<f-args>)')
+    vim.cmd('command! -range -nargs=+ AlchHash :lua require("alchemy").hash(<f-args>)')
 	vim.cmd('command! AlchStart :lua require("alchemy").start()')
 	vim.cmd('command! AlchStop :lua require("alchemy").stop()')
 end
@@ -124,6 +126,12 @@ function M.pad_right(...)
 	local padding = select(1, ...) or " "
 	local input = get_visual_selection()
 	vim.rpcnotify(M.convertJobId, M.AlchPadRight, padding, input)
+end
+
+function M.hash(...)
+    local algorithm = select(1, ...) or "sha256"
+    local input = get_visual_selection()
+    vim.rpcnotify(M.convertJobId, M.AlchHash, algorithm, input)
 end
 
 function M.start()
