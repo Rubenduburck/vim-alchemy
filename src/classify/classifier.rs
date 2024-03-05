@@ -101,18 +101,33 @@ impl Classifier {
                 let separator: Separator = separator.map_or(Separator::default(), |s| s.into());
                 let brackets: Brackets = brackets.map_or(Brackets::default(), |b| b.into());
                 let values =
-                    self.extract_array(separator.to_char(), brackets.open(), brackets.close())(candidate);
+                    self.extract_array(separator.to_char(), brackets.open(), brackets.close())(
+                        candidate,
+                    );
 
                 Classification::Array(ArrayClassification::new(
                     values.iter().map(|v| self.classify(v)).collect(),
-                    brackets,
+                    &brackets,
                     separator,
+                    self.array_err(candidate, &brackets),
                 ))
             }
         }
     }
 
-    /// Returns the percentage of the string that does not match teh base
+    fn array_err(&self, candidate: &str, brackets: &Brackets) -> usize {
+        match (
+            brackets.open().and_then(|o| candidate.find(o)),
+            brackets.close().and_then(|c| candidate.rfind(c)),
+        ) {
+            (Some(start), Some(end)) => end.saturating_sub(start),
+            (Some(start), None) => candidate.len() - start,
+            (None, Some(end)) => end,
+            _ => 0,
+        }
+    }
+
+    /// Returns the percentage of the string that does not match the base
     fn base_n_err(&self, candidate: &str, base: i32) -> usize {
         match candidate.len() {
             0 => Self::PRECISION,

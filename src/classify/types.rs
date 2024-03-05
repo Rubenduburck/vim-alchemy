@@ -121,18 +121,13 @@ impl Display for ArrayClassification<'_> {
 impl<'a> ArrayClassification<'a> {
     pub fn new(
         values: Vec<Vec<Classification<'a>>>,
-        brackets: Brackets,
+        brackets: &Brackets,
         separator: Separator,
+        err: usize,
     ) -> ArrayClassification<'a> {
-        // let err = values
-        //     .iter()
-        //     .map(|v| v.iter().min().unwrap_or(&Classification::Empty).error())
-        //     .sum::<usize>()
-        //     / values.len();
-        let err = if values.len() > 1 { 0 } else { usize::MAX };
         Self {
             values,
-            brackets,
+            brackets: brackets.clone(),
             separator,
             err,
         }

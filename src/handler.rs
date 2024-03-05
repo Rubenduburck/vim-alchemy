@@ -55,7 +55,7 @@ impl EventHandler {
     }
 
     pub fn escape(message: &str) -> String {
-        const SPECIAL_CHARS: &str = "^$*+?.()|{}[]";
+        const SPECIAL_CHARS: &str = "^$*+?.|{}[]";
         message
             .chars()
             .fold(vec![], |mut acc, c| {
