@@ -65,14 +65,8 @@ impl Hasher {
     pub fn hash(&self, decoded: &Decoded) -> Result<Decoded, Error> {
         let mut hasher = self.hasher()?;
         match decoded {
-            Decoded::Array(a) => {
-                for item in a {
-                    hasher.update(&item.to_be_bytes());
-                }
-            }
-            Decoded::Bytes(_) => {
-                hasher.update(&decoded.to_be_bytes());
-            }
+            Decoded::Array(a) =>  a.iter().for_each(|item|  hasher.update(&item.to_be_bytes())),
+            Decoded::Bytes(_) =>  decoded.to_be_bytes().chunks(32).for_each(|chunk| hasher.update(chunk)),
         };
         Ok(Decoded::from_be_bytes(&hasher.finalize()))
     }

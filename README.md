@@ -139,5 +139,4 @@ These tools are:
 * Pick classification from list
 
 ## Known Issues
-* Hashing of strings longer than 32 bytes is not supported
 
