@@ -131,6 +131,7 @@ These tools are:
 * ```AlchFlatten N``` - flatten the input to depth N
 * ```AlchGenerate encoding N``` - generate N "zero" bytes of the encoding
 * ```AlchRandom encoding N``` - generate N random bytes of the encoding
+* ```AlchHash algo``` - hash the input with the given hash algorithm
 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)

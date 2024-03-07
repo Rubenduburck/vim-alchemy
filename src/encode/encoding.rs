@@ -27,8 +27,6 @@ impl Encoding {
     const BASE: &'static str = "base";
     const UTF: &'static str = "utf";
     const HEX: &'static str = "hex";
-    const KECCAK: &'static str = "keccak";
-    const SHA: &'static str = "sha";
 
     const BASE_64_ENGINE: base64::engine::general_purpose::GeneralPurpose =
         base64::engine::general_purpose::GeneralPurpose::new(
@@ -139,14 +137,6 @@ impl Encoding {
                 .join(", "),
         ))
     }
-
-    fn encode_hash(
-        input: &Decoded,
-        algorithm: &str,
-    ) -> Result<String, Error> {
-        Ok("test".into())
-    }
-
 
     pub fn generate(&self, length: usize) -> Result<String, Error> {
         self.encode(&Decoded::from_le_bytes(&vec![0; length]), Some(true))

@@ -4,7 +4,6 @@ use base64::{
     Engine,
 };
 use rug::Integer;
-use sha3::{Digest, Keccak256};
 
 use crate::{
     classify::types::{ArrayClassification, Classification, IntegerClassification},
@@ -138,21 +137,6 @@ impl Decoded {
             Decoded::Array(_) => 0,
             Decoded::Bytes(b) => b.iter().rev().take_while(|x| **x == 0).count(),
         }
-    }
-
-    pub fn hash(&self, hasher: &impl Hasher) -> Self {
-        let mut hasher = Keccak256::new();
-        match self {
-            Decoded::Array(a) => {
-                for item in a {
-                    hasher.update(&item.to_be_bytes());
-                }
-            }
-            Decoded::Bytes(_) => {
-                hasher.update(self.to_be_bytes());
-            }
-        };
-        Self::from_be_bytes(&hasher.finalize())
     }
 }
 
