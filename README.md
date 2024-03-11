@@ -117,6 +117,21 @@ If for a given encoding operation, the encoder runs out of encodings in an array
 E.g. if ```[1, 2, 3]``` is encoded to [hex], the output will be ```[0x1, 0x2, 0x3]```.
 However, if ```[1, 2, 3]``` is encoded to ```[hex, int]```, the output will be ```[0x1, 2, 0x3]```.
 
+### Hashing
+
+I need a quick hash sometimes when dealing with Ethereum, so I added some simple hashing functionality.
+e.g.
+```vim
+" with Swap(address,uint256,uint256,uint256,uint256,address) highlighted
+:AlchHash keccak256
+" replaces with 0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822
+```
+Default is ```keccak256```, but other hashers are supported, including:
+* ```sha2-{224, 256, 384, 512}```
+* ```sha3-{224, 256, 384, 512}```
+* ```keccak-{224, 256, 384, 512}```
+
+
 ### Misc tools
 
 It turns out that there's many situations where you need slightly different encodings of the same data.
@@ -131,7 +146,7 @@ These tools are:
 * ```AlchFlatten N``` - flatten the input to depth N
 * ```AlchGenerate encoding N``` - generate N "zero" bytes of the encoding
 * ```AlchRandom encoding N``` - generate N random bytes of the encoding
-* ```AlchHash algo``` - hash the input with the given hash algorithm
+
 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)

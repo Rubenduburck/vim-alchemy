@@ -455,7 +455,7 @@ impl EventHandler {
         let algo = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
+                error!("Error: No algo provided");
                 return;
             }
         };

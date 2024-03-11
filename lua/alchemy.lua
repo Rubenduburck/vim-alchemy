@@ -118,7 +118,7 @@ function M.pad_right(...)
 end
 
 function M.hash(...)
-    local algorithm = select(1, ...) or "sha256"
+    local algorithm = select(1, ...) or "keccak256"
     local input = get_visual_selection()
     vim.rpcnotify(M.convertJobId, M.AlchHash, algorithm, input)
 end
