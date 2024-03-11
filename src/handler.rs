@@ -55,7 +55,7 @@ impl EventHandler {
     }
 
     pub fn escape_match(message: &str) -> String {
-        const SPECIAL_CHARS: &str = "^$*+?.|{}[]";
+        const SPECIAL_CHARS: &str = "^$*?.|{}[]/";
         message
             .chars()
             .fold(vec![], |mut acc, c| {
@@ -73,7 +73,7 @@ impl EventHandler {
     }
 
     pub fn escape_replace(message: &str) -> String {
-        const SPECIAL_CHARS: &str = "^$*+?.|{}[]";
+        const SPECIAL_CHARS: &str = "^$*?.|{}[]/";
         message
             .chars()
             .fold(vec![], |mut acc, c| {

@@ -160,3 +160,4 @@ I added some misc tools to help with that.
 * More explicit methods to skip classification
 
 ## Known Issues
+* Random is kinda slow
