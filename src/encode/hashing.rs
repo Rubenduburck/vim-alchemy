@@ -1,6 +1,7 @@
 use sha3::{digest::DynDigest, Digest};
 
 use super::decoding::Decoded;
+use super::encoding::BaseEncoding;
 use super::error::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,6 +71,11 @@ impl Hasher {
         };
         Ok(Decoded::from_be_bytes(&hasher.finalize()))
     }
+
+    pub fn encode(&self, decoded: &Decoded, pad: Option<bool>) -> Result<String, Error> {
+        BaseEncoding::new(16).encode(&self.hash(decoded)?, pad)
+    }
+
 }
 
 #[cfg(test)]

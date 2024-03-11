@@ -1,7 +1,7 @@
 use crate::{
     classify::{classifier::Classifier, types::Classification},
     encode::decoding::Decoded,
-    encode::{encoding::Encoding, hashing::Hasher},
+    encode::{encoding::{Encoding, BaseEncoding}, hashing::Hasher},
     error::ConvertError,
 };
 
@@ -130,7 +130,7 @@ impl Client {
         let encoded = if best.error() > 0 {
             let decoded = Decoded::from_be_bytes(input.as_bytes());
             let hash = hash_encoding.hash(&decoded)?;
-            Encoding::Base(16).encode(&hash, Some(true))?
+            Encoding::Base(BaseEncoding::new(16)).encode(&hash, Some(true))?
         } else {
             let decoded = Decoded::from(&best);
             let hash = hash_encoding.hash(&decoded)?;

@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 use crate::encode::{
-    encoding::{ArrayEncoding, Encoding},
+    encoding::{ArrayEncoding, Encoding, BaseEncoding},
     types::{Brackets, Separator},
 };
 
@@ -82,7 +82,7 @@ impl Classification<'_> {
                 Some(v.brackets.clone()),
                 Some(v.separator),
             )),
-            Classification::Integer(i) => Encoding::Base(i.base),
+            Classification::Integer(i) => Encoding::Base(BaseEncoding::new(i.base)),
             Classification::Empty => Encoding::Empty,
         }
     }
