@@ -30,6 +30,10 @@ impl Brackets {
             self.close().map(|c| c.to_string()).unwrap_or_default(),
         ]
     }
+
+    pub fn is_none(&self) -> bool {
+        self.open.is_none() && self.close.is_none()
+    }
 }
 
 impl From<&[Bracket]> for Brackets {
@@ -120,38 +124,86 @@ impl Bracket {
 #[derive(Debug, Clone, Copy)]
 pub struct Separator {
     pub char: char,
+    pub newline: bool,
 }
 
 impl Display for Separator {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.char)
+        if self.char == '\n' {
+            writeln!(f)
+        } else if self.newline {
+            writeln!(f, "{}", self.char)
+        } else {
+            write!(f, "{} ", self.char)
+        }
     }
 }
 
 impl Separator {
-    pub fn new(separator: char) -> Self {
-        Self { char: separator }
+    pub fn new(char: char, newline: bool) -> Self {
+        Self { char, newline }
     }
 
     pub fn to_char(&self) -> char {
         self.char
     }
+
+    pub fn is_newline(&self) -> bool {
+        self.newline && self.char == '\n'
+    }
 }
 
 impl Default for Separator {
     fn default() -> Self {
-        Self { char: ',' }
+        Self {
+            char: ',',
+            newline: false,
+        }
     }
 }
 
 impl From<char> for Separator {
-    fn from(separator: char) -> Self {
-        Self { char: separator }
+    fn from(char: char) -> Self {
+        if char == '\n' {
+            Self {
+                char,
+                newline: true,
+            }
+        } else {
+            Self {
+                char,
+                newline: false,
+            }
+        }
     }
 }
 
 impl From<&str> for Separator {
-    fn from(separator: &str) -> Self {
-        Separator::new(separator.chars().next().unwrap_or_default())
+    fn from(str: &str) -> Self {
+        if str.contains('\n') {
+            Separator::new(str.chars().next().unwrap_or_default(), true)
+        } else {
+            Separator::new(str.chars().next().unwrap_or_default(), false)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_separator() {
+        let separator = Separator::from("\n");
+        assert_eq!(separator.char, '\n');
+        assert!(separator.newline);
+
+        let separator = Separator::from(",\n");
+        assert_eq!(separator.char, ',');
+        assert!(separator.newline);
+
+        let separator = Separator::from(" \n");
+        assert_eq!(separator.char, ' ');
+        assert!(separator.newline);
     }
 }

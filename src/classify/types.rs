@@ -86,6 +86,13 @@ impl Classification<'_> {
             Classification::Empty => Encoding::Empty,
         }
     }
+
+    pub fn is_lines(&self) -> bool {
+        match self {
+            Classification::Array(arr) => arr.is_lines(),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -131,6 +138,10 @@ impl<'a> ArrayClassification<'a> {
             separator,
             err,
         }
+    }
+
+    pub fn is_lines(&self) -> bool {
+        self.separator.is_newline() && self.brackets.is_none()
     }
 
     pub fn collapse(&self) -> Vec<&Classification> {

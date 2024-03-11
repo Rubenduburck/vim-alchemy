@@ -1,7 +1,8 @@
 use super::{
     decoding::Decoded,
     error::Error,
-    types::{Bracket, Separator}, hashing::Hasher,
+    hashing::Hasher,
+    types::{Bracket, Separator},
 };
 use crate::encode::types::Brackets;
 use base64::Engine;
@@ -34,6 +35,14 @@ impl Encoding {
             base64::engine::general_purpose::NO_PAD,
         );
 
+    pub fn to_lines(&self) -> Encoding {
+        Encoding::Array(ArrayEncoding::new(
+            vec![self.clone()],
+            None,
+            Some(Separator::from('\n')),
+        ))
+    }
+
     pub fn base_n_prefix(base: i32) -> String {
         match base {
             16 => "0x",
@@ -61,7 +70,7 @@ impl Encoding {
 
     pub fn encode(&self, input: &Decoded, pad: Option<bool>) -> Result<String, Error> {
         match self {
-            Encoding::Array(v) => Encoding::encode_array(input, v, pad),
+            Encoding::Array(v) => v.encode(input, pad),
             Encoding::Base(n) => Encoding::encode_base_n(input, *n, pad.unwrap_or(false)),
             Encoding::Text(t) => t.encode(input),
             Encoding::Hash(h) => Encoding::Base(16).encode(&(h.hash(input)?), pad),
@@ -120,22 +129,6 @@ impl Encoding {
 
     fn encode_base_64(input: &Decoded) -> Result<String, Error> {
         Ok(Self::BASE_64_ENGINE.encode(input.to_be_bytes().clone()))
-    }
-
-    fn encode_array(
-        input: &Decoded,
-        encoding: &ArrayEncoding,
-        pad: Option<bool>,
-    ) -> Result<String, Error> {
-        Ok(encoding.brackets().join(
-            &input
-                .to_vec()
-                .iter()
-                .zip(encoding.inner().iter().cycle())
-                .map(|(x, y)| y.encode(x, pad))
-                .collect::<Result<Vec<String>, Error>>()?
-                .join(", "),
-        ))
     }
 
     pub fn generate(&self, length: usize) -> Result<String, Error> {
@@ -241,6 +234,22 @@ impl ArrayEncoding {
 
     pub fn inner(&self) -> &Vec<Encoding> {
         &self.values
+    }
+
+    pub fn newline(&self) -> bool {
+        self.separator.newline
+    }
+
+    pub fn encode(&self, input: &Decoded, pad: Option<bool>) -> Result<String, Error> {
+        Ok(self.brackets().join(
+            &input
+                .to_vec()
+                .iter()
+                .zip(self.values.iter().cycle())
+                .map(|(x, y)| y.encode(x, pad))
+                .collect::<Result<Vec<String>, Error>>()?
+                .join(&self.separator.to_string()),
+        ))
     }
 }
 
@@ -588,6 +597,21 @@ mod tests {
     }
 
     #[test]
+    fn test_encode_array_newline() {
+        let test_input = Decoded::Array(vec![
+            Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
+            Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
+        ]);
+        let result = Encoding::Array(ArrayEncoding::new(
+            vec![Encoding::Base(16), Encoding::Base(10)],
+            None,
+            Some(Separator::from('\n')),
+        ))
+        .encode(&test_input, Some(false));
+        assert_eq!(result.unwrap(), "0x1234567890\n78187493520");
+    }
+
+    #[test]
     fn test_encode_array_round_brackets() {
         let test_input = Decoded::Array(vec![
             Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
@@ -596,7 +620,7 @@ mod tests {
         let result = Encoding::Array(ArrayEncoding::new(
             vec![Encoding::Base(16), Encoding::Base(10)],
             Some(Bracket::Round.into()),
-            Some(Separator::new('\n')),
+            Some(Separator::from(",")),
         ))
         .encode(&test_input, Some(false));
         assert_eq!(result.unwrap(), "(0x1234567890, 78187493520)");

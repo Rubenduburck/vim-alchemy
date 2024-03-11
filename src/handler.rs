@@ -54,7 +54,7 @@ impl EventHandler {
         }
     }
 
-    pub fn escape(message: &str) -> String {
+    pub fn escape_match(message: &str) -> String {
         const SPECIAL_CHARS: &str = "^$*+?.|{}[]";
         message
             .chars()
@@ -72,9 +72,27 @@ impl EventHandler {
             .collect()
     }
 
+    pub fn escape_replace(message: &str) -> String {
+        const SPECIAL_CHARS: &str = "^$*+?.|{}[]";
+        message
+            .chars()
+            .fold(vec![], |mut acc, c| {
+                if c == '\n' {
+                    acc.push('\r')
+                } else if SPECIAL_CHARS.contains(c) {
+                    acc.extend(['\\', c])
+                } else {
+                    acc.push(c)
+                };
+                acc
+            })
+            .into_iter()
+            .collect()
+    }
+
     pub fn substitute(&mut self, from: &str, to: &str) -> Result<(), Error> {
-        let from = Self::escape(from);
-        let to = Self::escape(to);
+        let from = Self::escape_match(from);
+        let to = Self::escape_replace(to);
         let cmd = format!("'<,'>s/{}/{}", from, to,);
         info!(
             "replacing {} with message {} with command {}",
@@ -474,7 +492,7 @@ mod tests {
     #[test]
     fn test_escape() {
         let test = "[1\n2\n3]";
-        let escaped = EventHandler::escape(test);
+        let escaped = EventHandler::escape_match(test);
         assert_eq!(escaped, "\\[1\\n2\\n3\\]");
     }
 }

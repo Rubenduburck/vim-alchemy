@@ -98,8 +98,8 @@ impl Classifier {
         ) {
             (None, None) => Classification::Empty,
             (separator, brackets) => {
-                let separator: Separator = separator.map_or(Separator::default(), |s| s.into());
-                let brackets: Brackets = brackets.map_or(Brackets::default(), |b| b.into());
+                let separator = separator.map_or(Separator::default(), Separator::from);
+                let brackets = brackets.map_or(Brackets::default(), Brackets::from);
                 let values =
                     self.extract_array(separator.to_char(), brackets.open(), brackets.close())(
                         candidate,

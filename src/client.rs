@@ -31,8 +31,16 @@ impl Client {
     ) -> Result<String, ConvertError> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
+        let mut encoding = Encoding::from(encoding);
+        match &best {
+            Classification::Array(arr) if arr.is_lines() => {
+                encoding = encoding.to_lines();
+            }
+            _ => (),
+        }
+
         let decoded = Decoded::from(&best);
-        Ok(Encoding::from(encoding).encode(&decoded, pad)?)
+        Ok(encoding.encode(&decoded, pad)?)
     }
 
     pub fn classify_and_convert_all(
@@ -142,6 +150,14 @@ impl Default for Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_client_hex_on_lines() {
+        let client = Client::new();
+        let lines = "123\n456\n789";
+        let converted = client.classify_and_convert("hex", lines).expect("Failed to convert");
+        assert_eq!(converted, "0x7b\n0x1c8\n0x315");
+    }
 
     #[test]
     fn test_client_hex_from_bytes() {
