@@ -49,17 +49,13 @@ etc.
 
 ## Installation
 
-Until I figure out how to do a proper build script, you can install this with lazy.nvim like so:
 ```lua
 {
 	"rubenduburck/vim-alchemy",
-    build = function()
-        require("alchemy").build()
-    end,
+    event = "VeryLazy",
     opts = {},
 }
 ```
-the ```build()``` function runs ```cargo build --release``` in the plugin directory.
 
 ## Design
 I don't like thinking, especially about:
