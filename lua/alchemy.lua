@@ -33,8 +33,7 @@ M.bin = M.dir .. "../target/release/vim-alchemy"
 
 -- TODO: what is the proper way to do this?
 M.build = function()
-    -- download binary from github
-    local cmd = "curl -L https://github.com/Rubenduburck/vim-alchemy/releases/download/v0.1.0/vim-alchemy -o " .. M.bin
+	local cmd = "cargo build --release > /dev/null 2>&1"
 	local handle = io.popen("cd " .. M.dir .. " && " .. cmd)
 	if handle == nil then
 		vim.api.nvim_err_writeln("convert: cannot build")
