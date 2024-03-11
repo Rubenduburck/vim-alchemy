@@ -31,17 +31,6 @@ M.AlchHash = "hash"
 M.dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
 M.bin = M.dir .. "../target/release/vim-alchemy"
 
--- TODO: what is the proper way to do this?
-M.build = function()
-	local cmd = "cargo build --release > /dev/null 2>&1"
-	local handle = io.popen("cd " .. M.dir .. " && " .. cmd)
-	if handle == nil then
-		vim.api.nvim_err_writeln("convert: cannot build")
-		return
-	end
-	handle:close()
-end
-
 M.setup = function(opts)
 	M.configureCommands()
 	M.connect()
