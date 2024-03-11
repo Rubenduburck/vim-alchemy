@@ -107,9 +107,9 @@ impl EventHandler {
         self.position_cursor_before_selection()
     }
 
-    pub fn put_after_cursor(&mut self, _message: &str) -> Result<(), Error> {
+    pub fn put_after_cursor(&mut self, message: &str) -> Result<(), Error> {
         info!("putting message at cursor");
-        Ok(self.nvim.command("normal a")?)
+        Ok(self.nvim.command(&format!("normal a{}", message))?)
     }
 
     pub fn position_cursor_before_selection(&mut self) -> Result<(), Error> {
