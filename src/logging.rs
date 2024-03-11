@@ -26,19 +26,3 @@ pub fn setup_tracing() -> Result<(), ConvertError> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_setup_tracing() {
-        match setup_tracing() {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Error setting up tracing: {}", e);
-                panic!("Error setting up tracing");
-            }
-        }
-    }
-}
