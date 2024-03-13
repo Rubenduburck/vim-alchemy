@@ -161,3 +161,4 @@ I added some misc tools to help with that.
 
 ## Known Issues
 * Random is kinda slow
+* Various tools don't work line wise

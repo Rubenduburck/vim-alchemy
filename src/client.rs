@@ -238,9 +238,9 @@ mod tests {
     #[test]
     fn test_flatten_array() {
         let client = Client::new();
-        const TEST: &str = "[1,2,3,[4,5,6,[7,8,9]]]";
+        let test: &str = "[1,2,3,[4,5,6,[7,8,9]]]";
 
-        let converted = client.flatten_array(TEST).expect("Failed to convert");
+        let converted = client.flatten_array(test).expect("Failed to convert");
         println!("{}", converted);
         assert_eq!(converted, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
     }
@@ -248,9 +248,9 @@ mod tests {
     #[test]
     fn test_chunk_array() {
         let client = Client::new();
-        const TEST: &str = "[0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]";
+        let test: &str = "[0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01]";
 
-        let converted = client.chunk_array(3, TEST).expect("Failed to convert");
+        let converted = client.chunk_array(3, test).expect("Failed to convert");
         println!("{}", converted);
         assert_eq!(converted, "[0x70809, 0x40506, 0x10203]");
     }
