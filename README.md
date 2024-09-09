@@ -7,6 +7,8 @@
 
 Vim-alchemy is a personal plugin that does some stuff that I would otherwise waste a minute on.
 
+I've tried to keep these as fast as possible, most operations run in micros for reasonable inputs.
+
 Stuff like:
 
 * Converting int to hex and vice versa
@@ -14,6 +16,13 @@ Stuff like:
 " with 1000000000000000000 highlighted
 :Alch hex 
 " output: 0xde0b6b3a7640000
+```
+
+Handles arbitrary size btw:
+```vim
+" with 123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890 highlighted
+:Alch hex
+" output: 0x79dd55ae1cb75eea2dcc2a04430c813e5739185d3559085ef523a55a7ce2c5392c7d287cbdd892ae321dfd37238836d35ba5ceea2a01788a9935e243d1161ef7bf14baccff196ce3f0ad2
 ```
 
 * Converting hex to bytes and vice versa
@@ -47,6 +56,13 @@ And some more niche stuff like:
 " with Swap(address,uint256,uint256,uint256,uint256,address) highlighted
 :AlchHash keccak256
 " replaces with 0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822
+```
+
+Also works for anchor discriminants (solana):
+```vim
+" with global:initialize highlighted
+:AlchHash sha2
+" replaces with 0xafaf6d1f0d989bedd46a95073281adc21bb5e0e1d773b2fbbd7ab504cdd4aa30
 ```
 
 Most commands also work linewise, so you can do stuff like:
