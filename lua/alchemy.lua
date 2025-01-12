@@ -103,7 +103,7 @@ local function visual_replace_rpc(method, params)
 	end
 end
 
-local function rpc_replace(opts)
+local function rpc_replace(method, opts)
 	if opts.bufnr == nil then
 		opts.bufnr = vim.api.nvim_get_current_buf()
 	end
@@ -115,7 +115,7 @@ local function rpc_replace(opts)
 	-- Check if we have a valid visual selection
 	if opts.selection.text ~= nil then
 		-- Visual selection mode
-		local result = vim.rpcrequest(M.jobId, opts.command, opts.args, opts.selection.text)
+		local result = vim.rpcrequest(M.jobId, method, opts)
 		if result then
 			local lines = vim.split(result, "\n", { plain = true })
 			vim.api.nvim_buf_set_text(
@@ -249,11 +249,11 @@ function M.rotate_array(opts)
 end
 
 function M.generate(opts)
-	visual_replace_rpc(M.AlchGenerate, merge_opts(M.defaults.generate, opts))
+	rpc_replace(M.AlchGenerate, merge_opts(M.defaults.generate, opts))
 end
 
 function M.random(opts)
-	visual_replace_rpc(M.AlchRandom, merge_opts(M.defaults.random, opts))
+	rpc_replace(M.AlchRandom, merge_opts(M.defaults.random, opts))
 end
 
 function M.pad_left(opts)
