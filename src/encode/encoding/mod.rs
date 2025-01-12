@@ -4,6 +4,7 @@ pub mod base;
 pub use base::BaseEncoding;
 
 pub mod text;
+use neovim_lib::Value;
 pub use text::TextEncoding;
 
 pub mod array;
@@ -31,6 +32,12 @@ impl std::fmt::Display for Encoding {
             Encoding::Empty => write!(f, "Empty"),
             Encoding::Hash(h) => write!(f, "{}", h),
         }
+    }
+}
+
+impl From<&Encoding> for Value {
+    fn from(encoding: &Encoding) -> Value {
+        encoding.to_string().into()
     }
 }
 
@@ -99,6 +106,7 @@ impl Encoding {
             Some(true),
         )
     }
+
 }
 
 // Some ugly stuff in here, hardcoded priorities
@@ -149,13 +157,21 @@ impl From<&str> for Encoding {
                     .into(),
             )
 
-        // base64 -> Base(64)
+        // base64, base-64, base_64, etc -> Base(64)
         } else if let Some(stripped) = s.strip_prefix(Self::BASE) {
-            Encoding::Base(BaseEncoding::new(stripped.parse::<i32>().unwrap_or(10)))
+            let num_str = stripped
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>();
+            Encoding::Base(BaseEncoding::new(num_str.parse::<i32>().unwrap_or(10)))
 
         // utf8 -> Utf(8)
         } else if let Some(stripped) = s.strip_prefix(Self::UTF) {
-            Encoding::Text(TextEncoding::Utf(stripped.parse::<u8>().unwrap_or(8)))
+            let num_str = stripped
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>();
+            Encoding::Text(TextEncoding::Utf(num_str.parse::<u8>().unwrap_or(8)))
 
         // hex -> Base(16)
         } else {

@@ -27,11 +27,30 @@ impl Client {
         self.classify(input).into_iter().min().unwrap_or_default()
     }
 
-    pub fn classify_and_convert(
+    pub fn force_classify<'a>(&'a self, encoding: &str, input: &'a str) -> Classification<'a> {
+        self.classifier
+            .force_classify(&Encoding::from(encoding), input)
+    }
+
+    pub fn convert(
         &self,
+        input_encoding: &str,
         encoding: &str,
         input: &str,
     ) -> Result<String, Error> {
+        let pad = Some(false);
+        let classification = self.force_classify(input_encoding, input);
+        let encoding = Encoding::from(encoding);
+        if matches!(&classification, Classification::Array(arr) if arr.is_lines()) {
+            return Ok(encoding
+                .to_lines()
+                .encode(&Decoded::from(&classification), pad)?);
+        }
+        let decoded = Decoded::from(&classification);
+        Ok(encoding.encode(&decoded, pad)?)
+    }
+
+    pub fn classify_and_convert(&self, encoding: &str, input: &str) -> Result<String, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
         let mut encoding = Encoding::from(encoding);
@@ -43,10 +62,7 @@ impl Client {
         Ok(encoding.encode(&decoded, pad)?)
     }
 
-    pub fn classify_and_convert_all(
-        &self,
-        input: &str,
-    ) -> Result<Vec<(String, String)>, Error> {
+    pub fn classify_and_convert_all(&self, input: &str) -> Result<Vec<(String, String)>, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
         let mut encodings = Encoding::all();
@@ -132,7 +148,7 @@ impl Client {
     pub fn hash(&self, algorithm: &str, input: &str) -> Result<String, Error> {
         let best = self.classify_best_match(input);
         let hash_encoding = Hasher::from(algorithm);
-        let encoded = if best.error() > 0 {
+        let encoded = if best.score() > 0 {
             let decoded = Decoded::from_be_bytes(input.as_bytes());
             let hash = hash_encoding.hash(&decoded)?;
             Encoding::Base(BaseEncoding::new(16)).encode(&hash, Some(true))?

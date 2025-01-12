@@ -27,13 +27,21 @@ impl Display for Classification<'_> {
 
 impl From<&Classification<'_>> for Value {
     fn from(classification: &Classification) -> Self {
-        Value::from(classification.to_string())
-    }
-}
-
-impl Default for &Classification<'_> {
-    fn default() -> Self {
-        &Classification::Empty
+        vec![
+            (
+                Value::from("encoding"),
+                Value::from(&classification.encoding()),
+            ),
+            (
+                Value::from("score"),
+                Value::from(classification.score() as i64),
+            ),
+            (
+                Value::from("value"),
+                Value::from(classification.value_string()),
+            ),
+        ]
+        .into()
     }
 }
 
@@ -41,7 +49,7 @@ impl Eq for Classification<'_> {}
 
 impl PartialEq for Classification<'_> {
     fn eq(&self, other: &Self) -> bool {
-        self.error() == other.error() && self.encoding() == other.encoding()
+        self.score() == other.score() && self.encoding() == other.encoding()
     }
 }
 
@@ -53,19 +61,9 @@ impl PartialOrd for Classification<'_> {
 
 impl Ord for Classification<'_> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self.error().cmp(&other.error()) {
+        match self.score().cmp(&other.score()) {
             std::cmp::Ordering::Equal => self.encoding().cmp(&other.encoding()),
             ord => ord,
-        }
-    }
-}
-
-impl Classification<'_> {
-    pub fn error(&self) -> usize {
-        match self {
-            Classification::Array(arr) => arr.err,
-            Classification::Integer(int) => int.err,
-            Classification::Empty => usize::MAX,
         }
     }
 }
@@ -101,6 +99,30 @@ impl Classification<'_> {
             _ => false,
         }
     }
+
+    pub fn score(&self) -> usize {
+        match self {
+            Classification::Array(arr) => arr.score,
+            Classification::Integer(int) => int.score,
+            Classification::Empty => usize::MAX,
+        }
+    }
+
+    pub fn value_string(&self) -> String {
+        match self {
+            Classification::Array(arr) => arr.value_string(),
+            Classification::Integer(int) => int.value_string(),
+            Classification::Empty => String::new(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Classification::Empty => true,
+            Classification::Array(arr) => arr.values().is_empty(),
+            Classification::Integer(int) => int.value.is_empty(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -108,7 +130,7 @@ pub struct Array<'a> {
     pub values: Vec<Vec<Classification<'a>>>,
     pub brackets: Brackets,
     pub separator: Separator,
-    pub err: usize,
+    pub score: usize,
 }
 
 impl Display for Array<'_> {
@@ -144,7 +166,7 @@ impl<'a> Array<'a> {
             values,
             brackets: brackets.clone(),
             separator,
-            err,
+            score: err,
         }
     }
 
@@ -167,30 +189,53 @@ impl<'a> Array<'a> {
     pub fn values(&self) -> &Vec<Vec<Classification>> {
         &self.values
     }
+
+    pub fn value_string(&self) -> String {
+        self.brackets
+            .string_pair()
+            .join(
+                &self
+                    .values
+                    .iter()
+                    .map(|v| {
+                        self.brackets.string_pair().join(
+                            &v.iter()
+                                .map(|c| c.value_string())
+                                .collect::<Vec<_>>()
+                                .join(&self.separator.to_string()),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(&self.separator.to_string()),
+            )
+            .to_string()
+    }
 }
 
 #[derive(Debug)]
 pub struct Integer<'a> {
     pub base: i32,
     pub value: &'a str,
-    pub err: usize,
+    pub score: usize,
 }
 
 impl Display for Integer<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.base {
-            2 => write!(f, "bin {}", self.value),
-            8 => write!(f, "oct {}", self.value),
-            10 => write!(f, "dec {}", self.value),
-            16 => write!(f, "hex {}", self.value),
-            _ => write!(f, "base{} {}", self.base, self.value),
-        }
+        write!(f, "{{base-{}, {}, {}}}", self.base, self.value, self.score)
     }
 }
 
 impl<'a> Integer<'a> {
     pub fn new(base: i32, value: &'a str, err: usize) -> Self {
-        Self { base, value, err }
+        Self {
+            base,
+            value,
+            score: err,
+        }
+    }
+
+    pub fn value_string(&self) -> String {
+        self.value.to_string()
     }
 }
 

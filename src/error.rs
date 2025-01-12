@@ -21,6 +21,9 @@ pub enum Error {
     #[error("Unknown request {0}")]
     UnknownRequest(String),
 
+    #[error("Invalid args {0}")]
+    InvalidArgs(String),
+
 }
 
 impl From<Error> for neovim_lib::Value {

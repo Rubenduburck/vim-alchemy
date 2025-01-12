@@ -3,7 +3,10 @@ use crate::{
         regex::RegexCache,
         types::{Array, Classification},
     },
-    encode::types::{Bracket, Brackets, Separator},
+    encode::{
+        encoding::{ArrayEncoding, Encoding},
+        types::{Bracket, Brackets, Separator},
+    },
 };
 
 use super::types::Integer;
@@ -72,6 +75,18 @@ impl Classifier {
         }
     }
 
+    pub fn force_classify<'a>(
+        &'a self,
+        encoding: &Encoding,
+        candidate: &'a str,
+    ) -> Classification<'a> {
+        match encoding {
+            Encoding::Base(enc) => self.classify_base(candidate, enc.base),
+            Encoding::Array(enc) => self.force_classify_array(enc, candidate),
+            _ => Classification::Empty,
+        }
+    }
+
     pub fn classify<'a>(&'a self, candidate: &'a str) -> Vec<Classification<'a>> {
         vec![
             self.classify_base(candidate, 2),
@@ -88,6 +103,28 @@ impl Classifier {
             base,
             self.re.extract_base(base)(candidate).unwrap_or(""),
             self.base_n_err(candidate, base),
+        ))
+    }
+
+    pub fn force_classify_array<'a>(
+        &'a self,
+        encoding: &ArrayEncoding,
+        candidate: &'a str,
+    ) -> Classification<'a> {
+        let values = self.extract_array(
+            encoding.separator.to_char(),
+            encoding.brackets.open(),
+            encoding.brackets.close(),
+        )(candidate);
+        Classification::Array(Array::new(
+            values
+                .iter()
+                .zip(encoding.values.iter())
+                .map(|(v, e)| vec![self.force_classify(e, v)])
+                .collect(),
+            &encoding.brackets,
+            encoding.separator,
+            self.array_err(candidate, &encoding.brackets),
         ))
     }
 
@@ -169,7 +206,7 @@ mod tests {
         let cl = Classifier::new();
         for candidate in BIN_VALUES.iter() {
             let c = cl.classify(candidate);
-            match c.iter().min_by_key(|c| c.error()).unwrap() {
+            match c.iter().min_by_key(|c| c.score()).unwrap() {
                 Classification::Integer(i) => assert_eq!(i.base, 2),
                 _ => panic!("expected integer"),
             }
@@ -178,7 +215,7 @@ mod tests {
         const ALMOST_BIN_VALUES: [&str; 3] = [" 30b1010", "0b1112", "0x1001"];
         for candidate in ALMOST_BIN_VALUES.iter() {
             let c = cl.classify(candidate);
-            if let Classification::Integer(i) = c.iter().min_by_key(|c| c.error()).unwrap() {
+            if let Classification::Integer(i) = c.iter().min_by_key(|c| c.score()).unwrap() {
                 assert_ne!(i.base, 2)
             }
         }
@@ -190,7 +227,7 @@ mod tests {
         let cl = Classifier::new();
         for candidate in BS58_VALUES.iter() {
             let c = cl.classify(candidate);
-            let best = c.iter().min_by_key(|c| c.error()).unwrap();
+            let best = c.iter().min_by_key(|c| c.score()).unwrap();
             println!("candidate {:?}", candidate);
             println!("best {:?}", best);
         }
@@ -203,7 +240,7 @@ mod tests {
         let cl = Classifier::new();
         for candidate in HEX_VALUES.iter() {
             let c = cl.classify(candidate);
-            let best = c.iter().min_by_key(|c| c.error()).unwrap();
+            let best = c.iter().min_by_key(|c| c.score()).unwrap();
             println!("candidate {:?}", candidate);
             println!("best {:?}", best);
         }
@@ -211,7 +248,7 @@ mod tests {
         const ALMOST_HEX_VALUES: [&str; 3] = [" 0x12345678", "0xfgh", "f-16"];
         for candidate in ALMOST_HEX_VALUES.iter() {
             let c = cl.classify(candidate);
-            let best = c.iter().min_by_key(|c| c.error()).unwrap();
+            let best = c.iter().min_by_key(|c| c.score()).unwrap();
             println!("candidate {:?}", candidate);
             println!("best {:?}", best);
         }
@@ -223,7 +260,7 @@ mod tests {
         let cl = Classifier::new();
         for candidate in DEC_VALUES.iter() {
             let c = cl.classify(candidate);
-            let best = c.iter().min_by_key(|c| c.error()).unwrap();
+            let best = c.iter().min_by_key(|c| c.score()).unwrap();
             println!("candidate {:?}", candidate);
             println!("best {:?}", best);
         }
@@ -231,7 +268,7 @@ mod tests {
         const ALMOST_DEC_VALUES: [&str; 3] = [" 123", "123.789", "123-45"];
         for candidate in ALMOST_DEC_VALUES.iter() {
             let c = cl.classify(candidate);
-            let best = c.iter().min_by_key(|c| c.error()).unwrap();
+            let best = c.iter().min_by_key(|c| c.score()).unwrap();
             println!("candidate {:?}", candidate);
             println!("best {:?}", best);
         }
@@ -243,7 +280,7 @@ mod tests {
         let cl = Classifier::new();
         for candidate in BASE_64_VALUES.iter() {
             let c = cl.classify(candidate);
-            let best = c.iter().min_by_key(|c| c.error()).unwrap();
+            let best = c.iter().min_by_key(|c| c.score()).unwrap();
             println!("candidate {:?}", candidate);
             println!("best {:?}", best);
         }
@@ -251,7 +288,7 @@ mod tests {
         const ALMOST_BASE_64_VALUES: [&str; 3] = ["aGVsbG8", "aGVsbG8===", "aGVsbG8= "];
         for candidate in ALMOST_BASE_64_VALUES.iter() {
             let c = cl.classify(candidate);
-            let best = c.iter().min_by_key(|c| c.error()).unwrap();
+            let best = c.iter().min_by_key(|c| c.score()).unwrap();
             println!("candidate {:?}", candidate);
             println!("best {:?}", best);
         }
@@ -263,7 +300,7 @@ mod tests {
         let cl = Classifier::new();
         for candidate in ARRAY_VALUES.iter() {
             let c = cl.classify(candidate);
-            let best = c.iter().min_by_key(|c| c.error()).unwrap();
+            let best = c.iter().min_by_key(|c| c.score()).unwrap();
             match best {
                 Classification::Array(a) => {
                     assert_eq!(a.collapse().len(), 5);
@@ -277,7 +314,7 @@ mod tests {
         const ALMOST_ARRAY_VALUES: [&str; 3] = ["[1, 2, 3", "1, 2, 3]", "(1, 4, 5"];
         for candidate in ALMOST_ARRAY_VALUES.iter() {
             let c = cl.classify(candidate);
-            let best = c.iter().min_by_key(|c| c.error()).unwrap();
+            let best = c.iter().min_by_key(|c| c.score()).unwrap();
             match best {
                 Classification::Array(a) => {
                     assert_eq!(a.collapse().len(), 3);
