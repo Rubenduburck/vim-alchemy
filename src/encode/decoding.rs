@@ -79,6 +79,7 @@ impl<'a> From<&Classification<'a>> for Decoded {
     }
 }
 
+#[allow(dead_code)]
 trait Hasher {
     fn update(&mut self, input: &[u8]);
     fn finalize(self) -> [u8; 32];

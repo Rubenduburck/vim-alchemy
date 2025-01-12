@@ -1,5 +1,7 @@
 use std::fmt::{Display, Formatter};
 
+use neovim_lib::Value;
+
 use crate::encode::{
     encoding::{ArrayEncoding, BaseEncoding, Encoding},
     types::{Brackets, Separator},
@@ -20,6 +22,12 @@ impl Display for Classification<'_> {
             Classification::Integer(int) => int.fmt(f),
             Classification::Empty => write!(f, "Empty"),
         }
+    }
+}
+
+impl From<&Classification<'_>> for Value {
+    fn from(classification: &Classification) -> Self {
+        Value::from(classification.to_string())
     }
 }
 

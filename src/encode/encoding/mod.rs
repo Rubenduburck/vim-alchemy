@@ -1,12 +1,13 @@
-use super::{
-    decoding::Decoded,
-    error::Error,
-    hashing::Hasher,
-    types::{Bracket, Separator},
-};
-use crate::encode::types::Brackets;
-use base64::Engine;
-use rug::Integer;
+use super::{decoding::Decoded, error::Error, hashing::Hasher, types::Separator};
+
+pub mod base;
+pub use base::BaseEncoding;
+
+pub mod text;
+pub use text::TextEncoding;
+
+pub mod array;
+pub use array::ArrayEncoding;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 /// Higher priority first, in case errors are equal.
@@ -21,6 +22,18 @@ pub enum Encoding {
     Hash(Hasher),
 }
 
+impl std::fmt::Display for Encoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Encoding::Text(t) => write!(f, "{}", t),
+            Encoding::Base(b) => write!(f, "{}", b),
+            Encoding::Array(a) => write!(f, "{}", a),
+            Encoding::Empty => write!(f, "Empty"),
+            Encoding::Hash(h) => write!(f, "{}", h),
+        }
+    }
+}
+
 impl Encoding {
     const INTEGER: &'static str = "int";
     const BINARY: &'static str = "bin";
@@ -28,6 +41,23 @@ impl Encoding {
     const BASE: &'static str = "base";
     const UTF: &'static str = "utf";
     const HEX: &'static str = "hex";
+
+    pub fn all() -> Vec<Self> {
+        let encodings = TextEncoding::all()
+            .into_iter()
+            .map(Encoding::Text)
+            .chain(BaseEncoding::all().into_iter().map(Encoding::Base))
+            .collect::<Vec<_>>();
+        encodings
+            .clone()
+            .into_iter()
+            .chain(
+                encodings
+                    .into_iter()
+                    .map(|e| Encoding::Array(vec![e].into())),
+            )
+            .collect()
+    }
 
     pub fn to_lines(&self) -> Encoding {
         Encoding::Array(ArrayEncoding::new(
@@ -68,232 +98,6 @@ impl Encoding {
             ),
             Some(true),
         )
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct BaseEncoding {
-    base: i32,
-}
-
-impl BaseEncoding {
-    const BASE_64_ENGINE: base64::engine::general_purpose::GeneralPurpose =
-        base64::engine::general_purpose::GeneralPurpose::new(
-            &base64::alphabet::STANDARD,
-            base64::engine::general_purpose::NO_PAD,
-        );
-
-    pub fn new(base: i32) -> Self {
-        Self { base }
-    }
-
-    pub fn base_n_zero(base: i32) -> String {
-        match base {
-            64 => "A",
-            58 => "1",
-            _ => "0",
-        }
-        .into()
-    }
-
-    pub fn base_n_prefix(base: i32) -> String {
-        match base {
-            16 => "0x",
-            2 => "0b",
-            _ => Default::default(),
-        }
-        .into()
-    }
-
-    fn format(base: i32) -> impl FnOnce(String) -> String {
-        move |s| format!("{}{}", Self::base_n_prefix(base), s)
-    }
-
-    pub fn encode(&self, input: &Decoded, pad: Option<bool>) -> Result<String, Error> {
-        match self.base {
-            2..=36 => Self::encode_with_rug(input, self.base),
-            58 => Self::encode_base_58(input),
-            64 => Self::encode_base_64(input),
-            _ => Err(Error::UnsupportedBase(self.base)),
-        }
-        .map(|x| {
-            if pad.unwrap_or(false) {
-                Self::base_n_left_pad(self.base, input.len())(x)
-            } else {
-                x
-            }
-        })
-        .map(Self::format(self.base))
-    }
-
-    fn encode_with_rug(input: &Decoded, base: i32) -> Result<String, Error> {
-        Ok(
-            Integer::from_digits(&input.to_le_bytes(), rug::integer::Order::Lsf)
-                .to_string_radix(base),
-        )
-    }
-
-    fn encode_base_58(input: &Decoded) -> Result<String, Error> {
-        Ok(bs58::encode(input.to_be_bytes().clone()).into_string())
-    }
-
-    fn encode_base_64(input: &Decoded) -> Result<String, Error> {
-        Ok(Self::BASE_64_ENGINE.encode(input.to_be_bytes().clone()))
-    }
-
-    fn base_n_pad_count(base: i32, target_byte_count: usize) -> usize {
-        if base < 2 {
-            return 0;
-        }
-        (8.0 / f64::log2(base as f64) * (target_byte_count as f64)).ceil() as usize
-    }
-
-    pub fn base_n_left_pad(base: i32, target_byte_count: usize) -> impl FnOnce(String) -> String {
-        let zero = Self::base_n_zero(base);
-        let target_str_len = Self::base_n_pad_count(base, target_byte_count);
-        move |s| {
-            let padding_count = target_str_len.saturating_sub(s.len());
-            let padding = zero.repeat(padding_count);
-            format!("{}{}", padding, s)
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum TextEncoding {
-    Utf(u8),
-    Ascii,
-}
-
-impl TextEncoding {
-    pub fn encode(&self, v: &Decoded) -> Result<String, Error> {
-        match self {
-            TextEncoding::Utf(8) | TextEncoding::Ascii => {
-                Ok(String::from_utf8_lossy(&v.to_le_bytes()).to_string())
-            }
-            TextEncoding::Utf(16) => {
-                let utf_16_bytes: Vec<u16> = v
-                    .to_le_bytes()
-                    .chunks(2)
-                    .map(|chunk| {
-                        chunk
-                            .iter()
-                            .enumerate()
-                            .map(|(i, b)| {
-                                u16::from(*b) * if i == 1 { 1 } else { u16::from(u8::MAX) }
-                            })
-                            .sum()
-                    })
-                    .collect();
-                Ok(String::from_utf16_lossy(&utf_16_bytes).to_string())
-            }
-            _ => Err(Error::UnsupportedEncoding),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ArrayEncoding {
-    pub values: Vec<Encoding>,
-    pub brackets: Brackets,
-    pub separator: Separator,
-}
-
-impl ArrayEncoding {
-    pub fn new(
-        values: Vec<Encoding>,
-        brackets: Option<Brackets>,
-        separator: Option<Separator>,
-    ) -> Self {
-        Self {
-            values,
-            brackets: brackets.unwrap_or_default(),
-            separator: separator.unwrap_or_default(),
-        }
-    }
-
-    pub fn flattened_values(&self) -> Vec<Encoding> {
-        self.values
-            .iter()
-            .flat_map(|v| match v {
-                Encoding::Array(a) => a.flattened_values(),
-                _ => vec![v.clone()],
-            })
-            .collect()
-    }
-
-    pub fn flatten(&self) -> Self {
-        Self::new(
-            self.flattened_values(),
-            Some(self.brackets.clone()),
-            Some(self.separator),
-        )
-    }
-
-    pub fn brackets(&self) -> [String; 2] {
-        [
-            self.brackets
-                .open()
-                .map(|c| c.to_string())
-                .unwrap_or_default(),
-            self.brackets
-                .close()
-                .map(|c| c.to_string())
-                .unwrap_or_default(),
-        ]
-    }
-
-    pub fn inner(&self) -> &Vec<Encoding> {
-        &self.values
-    }
-
-    pub fn newline(&self) -> bool {
-        self.separator.newline
-    }
-
-    pub fn encode(&self, input: &Decoded, pad: Option<bool>) -> Result<String, Error> {
-        Ok(self.brackets().join(
-            &input
-                .to_vec()
-                .iter()
-                .zip(self.values.iter().cycle())
-                .map(|(x, y)| y.encode(x, pad))
-                .collect::<Result<Vec<String>, Error>>()?
-                .join(&self.separator.to_string()),
-        ))
-    }
-}
-
-impl From<Vec<Encoding>> for ArrayEncoding {
-    fn from(values: Vec<Encoding>) -> Self {
-        Self::new(
-            values,
-            Some(Brackets::new(
-                Some(Bracket::default()),
-                Some(Bracket::default()),
-            )),
-            Some(Separator::default()),
-        )
-    }
-}
-
-impl Eq for ArrayEncoding {}
-
-impl PartialEq for ArrayEncoding {
-    fn eq(&self, other: &Self) -> bool {
-        self.values == other.values
-    }
-}
-
-impl Ord for ArrayEncoding {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.values.cmp(&other.values)
-    }
-}
-
-impl PartialOrd for ArrayEncoding {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
     }
 }
 

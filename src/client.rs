@@ -5,7 +5,7 @@ use crate::{
         encoding::{BaseEncoding, Encoding},
         hashing::Hasher,
     },
-    error::ConvertError,
+    error::Error,
 };
 
 pub struct Client {
@@ -31,15 +31,12 @@ impl Client {
         &self,
         encoding: &str,
         input: &str,
-    ) -> Result<String, ConvertError> {
+    ) -> Result<String, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
         let mut encoding = Encoding::from(encoding);
-        match &best {
-            Classification::Array(arr) if arr.is_lines() => {
-                encoding = encoding.to_lines();
-            }
-            _ => (),
+        if matches!(&best, Classification::Array(arr) if arr.is_lines()) {
+            encoding = encoding.to_lines();
         }
 
         let decoded = Decoded::from(&best);
@@ -48,24 +45,29 @@ impl Client {
 
     pub fn classify_and_convert_all(
         &self,
-        encoding: &str,
         input: &str,
-    ) -> Result<Vec<(String, String)>, ConvertError> {
-        let mut classifications = self.classify(input);
-        classifications.sort();
-        let decodings = classifications
-            .iter()
-            .map(|c| (c.to_string(), Decoded::from(c)))
-            .collect::<Vec<_>>();
-        let encoding = Encoding::from(encoding);
-        let mut encodeds = Vec::new();
-        for decoding in decodings {
-            encodeds.push((decoding.0, encoding.encode(&decoding.1, Some(false))?));
+    ) -> Result<Vec<(String, String)>, Error> {
+        let pad = Some(false);
+        let best = self.classify_best_match(input);
+        let mut encodings = Encoding::all();
+        if matches!(&best, Classification::Array(arr) if arr.is_lines()) {
+            encodings = encodings.into_iter().map(|e| e.to_lines()).collect();
         }
+
+        let decoded = Decoded::from(&best);
+        let encodeds = encodings
+            .into_iter()
+            .flat_map(|encoding| {
+                encoding
+                    .encode(&decoded, pad)
+                    .map(|encoded| (format!("{}", encoding), encoded))
+            })
+            .collect();
+
         Ok(encodeds)
     }
 
-    pub fn flatten_array(&self, input: &str) -> Result<String, ConvertError> {
+    pub fn flatten_array(&self, input: &str) -> Result<String, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
         let decoded = Decoded::from(&best);
@@ -73,7 +75,7 @@ impl Client {
         Ok(best.encoding().flatten().encode(&flattened, pad)?)
     }
 
-    pub fn chunk_array(&self, chunk_count: usize, input: &str) -> Result<String, ConvertError> {
+    pub fn chunk_array(&self, chunk_count: usize, input: &str) -> Result<String, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
         let decoded = Decoded::from(&best);
@@ -81,7 +83,7 @@ impl Client {
         Ok(best.encoding().encode(&chunked, pad)?)
     }
 
-    pub fn reverse_array(&self, input: &str, depth: usize) -> Result<String, ConvertError> {
+    pub fn reverse_array(&self, input: &str, depth: usize) -> Result<String, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
         let decoded = Decoded::from(&best);
@@ -89,7 +91,7 @@ impl Client {
         Ok(best.encoding().encode(&reversed, pad)?)
     }
 
-    pub fn rotate_array(&self, input: &str, rotation: isize) -> Result<String, ConvertError> {
+    pub fn rotate_array(&self, input: &str, rotation: isize) -> Result<String, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
         let decoded = Decoded::from(&best);
@@ -97,19 +99,19 @@ impl Client {
         Ok(best.encoding().encode(&rotated, pad)?)
     }
 
-    pub fn generate(&self, encoding: &str, length: usize) -> Result<String, ConvertError> {
+    pub fn generate(&self, encoding: &str, length: usize) -> Result<String, Error> {
         let encoding = Encoding::from(encoding);
         let generated = encoding.generate(length)?;
         Ok(generated)
     }
 
-    pub fn random(&self, encoding: &str, length: usize) -> Result<String, ConvertError> {
+    pub fn random(&self, encoding: &str, length: usize) -> Result<String, Error> {
         let encoding = Encoding::from(encoding);
         let randomized = encoding.random(length)?;
         Ok(randomized)
     }
 
-    pub fn pad_left(&self, length: usize, input: &str) -> Result<String, ConvertError> {
+    pub fn pad_left(&self, length: usize, input: &str) -> Result<String, Error> {
         let pad = Some(true);
         let best = self.classify_best_match(input);
         let decoded = Decoded::from(&best);
@@ -118,7 +120,7 @@ impl Client {
         Ok(encoded)
     }
 
-    pub fn pad_right(&self, length: usize, input: &str) -> Result<String, ConvertError> {
+    pub fn pad_right(&self, length: usize, input: &str) -> Result<String, Error> {
         let pad = Some(true);
         let best = self.classify_best_match(input);
         let decoded: Decoded = (&best).into();
@@ -127,7 +129,7 @@ impl Client {
         Ok(encoded)
     }
 
-    pub fn hash(&self, algorithm: &str, input: &str) -> Result<String, ConvertError> {
+    pub fn hash(&self, algorithm: &str, input: &str) -> Result<String, Error> {
         let best = self.classify_best_match(input);
         let hash_encoding = Hasher::from(algorithm);
         let encoded = if best.error() > 0 {
@@ -316,5 +318,19 @@ mod tests {
             hashed,
             "0x56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432"
         );
+    }
+
+    #[test]
+    fn test_encode_all() {
+        const TEST: &str = "0x1234";
+        let client = Client::new();
+        println!("Testing all encodings for: {}", TEST);
+        let encodeds = client
+            .classify_and_convert_all(TEST)
+            .expect("Failed to convert");
+        for (encoding, encoded) in encodeds.iter() {
+            println!("{}: {}", encoding, encoded);
+        }
+        assert_eq!(encodeds.len(), 4);
     }
 }

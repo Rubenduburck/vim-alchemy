@@ -11,6 +11,16 @@ pub enum Hasher {
     Keccak(usize),
 }
 
+impl std::fmt::Display for Hasher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Hasher::Sha2(bits) => write!(f, "sha2-{}", bits),
+            Hasher::Sha3(bits) => write!(f, "sha3-{}", bits),
+            Hasher::Keccak(bits) => write!(f, "keccak-{}", bits),
+        }
+    }
+}
+
 impl Default for Hasher {
     fn default() -> Self {
         Self::Keccak(256)
@@ -36,6 +46,23 @@ impl Hasher {
     const SHA2: &'static str = "sha2";
     const SHA3: &'static str = "sha3";
     const KECCAK: &'static str = "keccak";
+
+    pub fn all() -> Vec<Self> {
+        vec![
+            Self::Sha2(224),
+            Self::Sha2(256),
+            Self::Sha2(384),
+            Self::Sha2(512),
+            Self::Sha3(224),
+            Self::Sha3(256),
+            Self::Sha3(384),
+            Self::Sha3(512),
+            Self::Keccak(224),
+            Self::Keccak(256),
+            Self::Keccak(384),
+            Self::Keccak(512),
+        ]
+    }
 
     pub fn hasher(&self) -> Result<Box<dyn DynDigest>, Error> {
         match self {

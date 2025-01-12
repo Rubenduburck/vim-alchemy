@@ -1,11 +1,11 @@
-use neovim_lib::{Neovim, NeovimApi, Session, Value};
+use neovim_lib::{RequestHandler, Value};
 
-use crate::{client::Client, encode::error::Error};
-
-use tracing::{debug, error, info};
+use crate::client::Client;
+use crate::error::Error;
 
 pub enum Message {
     ClassifyAndConvert,
+    Classify,
     FlattenArray,
     ChunkArray,
     ReverseArray,
@@ -23,6 +23,7 @@ impl From<String> for Message {
     fn from(event: String) -> Self {
         match event.as_str() {
             "classify_and_convert" => Message::ClassifyAndConvert,
+            "classify" => Message::Classify,
             "chunk_array" => Message::ChunkArray,
             "flatten_array" => Message::FlattenArray,
             "reverse_array" => Message::ReverseArray,
@@ -38,178 +39,86 @@ impl From<String> for Message {
     }
 }
 
-pub struct EventHandler {
-    nvim: Neovim,
+pub struct Handler {
     client: Client,
 }
 
-impl EventHandler {
-    pub fn new() -> EventHandler {
-        EventHandler {
-            nvim: Neovim::new(Session::new_parent().unwrap_or_else(|e| {
-                error!("Failed to create nvim session: {}", e);
-                panic!();
-            })),
+impl Handler {
+    pub fn new() -> Handler {
+        Handler {
             client: Client::new(),
-        }
-    }
-
-    pub fn escape_match(message: &str) -> String {
-        const SPECIAL_CHARS: &str = "^$*?.|{}[]/";
-        message
-            .chars()
-            .fold(vec![], |mut acc, c| {
-                if c == '\n' {
-                    acc.extend(c.escape_default())
-                } else if SPECIAL_CHARS.contains(c) {
-                    acc.extend(['\\', c])
-                } else {
-                    acc.push(c)
-                };
-                acc
-            })
-            .into_iter()
-            .collect()
-    }
-
-    pub fn escape_replace(message: &str) -> String {
-        const SPECIAL_CHARS: &str = "^$*?.|{}[]/";
-        message
-            .chars()
-            .fold(vec![], |mut acc, c| {
-                if c == '\n' {
-                    acc.push('\r')
-                } else if SPECIAL_CHARS.contains(c) {
-                    acc.extend(['\\', c])
-                } else {
-                    acc.push(c)
-                };
-                acc
-            })
-            .into_iter()
-            .collect()
-    }
-
-    pub fn substitute(&mut self, from: &str, to: &str) -> Result<(), Error> {
-        let from = Self::escape_match(from);
-        let to = Self::escape_replace(to);
-        let cmd = format!("'<,'>s/{}/{}", from, to,);
-        info!(
-            "replacing {} with message {} with command {}",
-            from, to, cmd
-        );
-        Ok(self.nvim.command(&cmd)?)
-    }
-
-    pub fn replace(&mut self, from: &str, to: &str) -> Result<(), Error> {
-        info!("replacing {} with message {}", from, to);
-        self.substitute(from, to)?;
-        self.position_cursor_before_selection()
-    }
-
-    pub fn put_after_cursor(&mut self, message: &str) -> Result<(), Error> {
-        info!("putting message at cursor");
-        Ok(self.nvim.command(&format!("normal a{}", message))?)
-    }
-
-    pub fn position_cursor_before_selection(&mut self) -> Result<(), Error> {
-        info!("positioning cursor before selection");
-        Ok(self.nvim.command("normal '<")?)
-    }
-
-    pub fn recv(&mut self) {
-        info!("Starting event loop");
-        let receiver = self.nvim.session.start_event_loop_channel();
-
-        info!("Receiving events");
-        for (event, values) in receiver {
-            match Message::from(event) {
-                Message::Stop => {
-                    info!("Stopping");
-                    break;
-                }
-                message => self.handle(message, values),
-            }
-        }
-    }
-
-    pub fn handle(&mut self, message: Message, values: Vec<Value>) {
-        info!("message received");
-        match message {
-            Message::ClassifyAndConvert => self.handle_classify_and_convert(values),
-            Message::FlattenArray => self.handle_flatten_array(values),
-            Message::ChunkArray => self.handle_chunk_array(values),
-            Message::Unknown(event) => error!("Unknown event: {}", event),
-            Message::ReverseArray => self.handle_reverse_array(values),
-            Message::RotateArray => self.handle_rotate_array(values),
-            Message::Generate => self.handle_generate(values),
-            Message::Random => self.handle_random(values),
-            Message::PadLeft => self.handle_pad_left(values),
-            Message::PadRight => self.handle_pad_right(values),
-            Message::Hash => self.handle_hash(values),
-            _ => {}
         }
     }
 
     /// Classify the given input
     /// Then convert the input to the provided encoding
     /// E.g. classify_and_convert "0x1234" "bytes" -> "[0x12, 0x34]"
-    fn handle_classify_and_convert(&mut self, values: Vec<Value>) {
-        info!("Classify and convert");
+    fn handle_classify_and_convert(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Classify and convert");
         let mut args = values.iter();
         let encoding = match args.next() {
+            Some(encoding) => encoding.as_str().expect("Error: Invalid input"),
+            None => {
+                return Err(Error::MissingArgs("encoding".to_string()));
+            }
+        };
+        tracing::info!("encoding: {}", encoding);
+        let input = match args.next() {
+            Some(input) => input.as_str().expect("Error: Invalid encoding"),
+            None => {
+                return Err(Error::MissingArgs("input".to_string()));
+            }
+        };
+        tracing::info!("input: {}", input);
+        self.client
+            .classify_and_convert(encoding, input)
+            .map(Value::from)
+            .map_err(Error::from)
+    }
+
+    /// Classify the given input
+    /// E.g. classify "0x1234" -> "hex"
+    fn handle_classify(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Classify");
+        let mut args = values.iter();
+        let input = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("input".to_string()));
             }
         };
-        info!("encoding: {}", encoding);
-        let input = match args.next() {
-            Some(encoding) => encoding.as_str().expect("Error: Invalid encoding"),
-            None => {
-                error!("Error: No encoding provided");
-                return;
-            }
-        };
-        info!("input: {}", input);
-        match self.client.classify_and_convert(encoding, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        tracing::info!("input: {}", input);
+        Ok(Value::from(
+            self.client
+                .classify(input)
+                .iter()
+                .map(Value::from)
+                .collect::<Vec<Value>>(),
+        ))
     }
 
     /// Flatten the given array
     /// E.g. flatten_array "[[1, 2], [3, 4]]" -> "[1, 2, 3, 4]"
-    fn handle_flatten_array(&mut self, values: Vec<Value>) {
-        info!("Flatten array");
+    fn handle_flatten_array(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Flatten array");
         let mut args = values.iter();
         let input = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("input".to_string()));
             }
         };
-        info!("input: {}", input);
-        match self.client.flatten_array(input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        tracing::info!("input: {}", input);
+        self.client
+            .flatten_array(input)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Chunk the given array
     /// E.g. chunk_array 2 "[1, 2, 3, 4, 5, 6]" -> "[[1, 2, 3], [4, 5, 6]]"
-    fn handle_chunk_array(&mut self, values: Vec<Value>) {
-        info!("Chunk array");
+    fn handle_chunk_array(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Chunk array");
         let mut args = values.iter();
         let chunk_count = match args.next() {
             Some(input) => input
@@ -218,33 +127,27 @@ impl EventHandler {
                 .parse::<u32>()
                 .expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("chunk_count".to_string()));
             }
         };
-        info!("chunk_count: {}", chunk_count);
+        tracing::info!("chunk_count: {}", chunk_count);
         let input = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("input".to_string()));
             }
         };
-        info!("input: {}", input);
-        match self.client.chunk_array(chunk_count as usize, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        tracing::info!("input: {}", input);
+        self.client
+            .chunk_array(chunk_count as usize, input)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Reverse the given array
     /// E.g. reverse_array 2 "[1, 2, 3, 4, 5, 6]" -> "[5, 4, 3, 2, 1]"
-    fn handle_reverse_array(&mut self, values: Vec<Value>) {
-        info!("Reverse array");
+    fn handle_reverse_array(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Reverse array");
         let mut args = values.iter();
         let depth = match args.next() {
             Some(input) => input
@@ -253,32 +156,26 @@ impl EventHandler {
                 .parse::<u32>()
                 .expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("depth".to_string()));
             }
         };
         let input = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("input".to_string()));
             }
         };
-        info!("input: {}", input);
-        match self.client.reverse_array(input, depth as usize) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        tracing::info!("input: {}", input);
+        self.client
+            .reverse_array(input, depth as usize)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Rotate the given array
     /// E.g. rotate_array 2 "[1, 2, 3, 4, 5, 6]" -> "[5, 6, 1, 2, 3, 4]"
-    fn handle_rotate_array(&mut self, values: Vec<Value>) {
-        info!("Rotate array");
+    fn handle_rotate_array(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Rotate array");
         let mut args = values.iter();
         let rotation = match args.next() {
             Some(input) => input
@@ -287,40 +184,33 @@ impl EventHandler {
                 .parse::<isize>()
                 .expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("rotation".to_string()));
             }
         };
         let input = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("input".to_string()));
             }
         };
-        info!("input: {}", input);
-        match self.client.rotate_array(input, rotation) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        tracing::info!("input: {}", input);
+        self.client
+            .rotate_array(input, rotation)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Generate an empty in the given encoding for the given number of bytes
     /// E.g. generate "bytes" 4 -> "[0x00, 0x00, 0x00, 0x00]"
     /// E.g. generate "hex" 4 -> "0x00000000"
     /// E.g. generate "int" 4 -> "00000000"
-    fn handle_generate(&mut self, values: Vec<Value>) {
-        info!("New");
+    fn handle_generate(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("New");
         let mut args = values.iter();
         let encoding = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("encoding".to_string()));
             }
         };
         let number = match args.next() {
@@ -330,31 +220,25 @@ impl EventHandler {
                 .parse::<usize>()
                 .expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("number".to_string()));
             }
         };
-        match self.client.generate(encoding, number) {
-            Ok(result) => {
-                if let Err(e) = self.put_after_cursor(&result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        self.client
+            .generate(encoding, number)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Generate a random value in the given encoding for the given number of bytes
     /// E.g. random "bytes" 4 -> "[0x12, 0x34, 0x56, 0x78]"
     /// E.g. random "hex" 4 -> "0x12345678"
-    fn handle_random(&mut self, values: Vec<Value>) {
-        info!("Random");
+    fn handle_random(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Random");
         let mut args = values.iter();
         let encoding = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("encoding".to_string()));
             }
         };
         let number = match args.next() {
@@ -364,25 +248,20 @@ impl EventHandler {
                 .parse::<usize>()
                 .expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("number".to_string()));
             }
         };
-        match self.client.random(encoding, number) {
-            Ok(result) => {
-                if let Err(e) = self.put_after_cursor(&result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        self.client
+            .random(encoding, number)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Pad the given input to the left to the given bytes
     /// E.g. pad_left 4 "0x1234" -> "0x00001234"
     /// E.g. pad_left 4 "[1, 2]" -> "[0x00, 0x00, 0x01, 0x02]"
-    fn handle_pad_left(&mut self, values: Vec<Value>) {
-        info!("Pad");
+    fn handle_pad_left(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Pad");
         let mut args = values.iter();
         let padding = match args.next() {
             Some(input) => input
@@ -391,32 +270,26 @@ impl EventHandler {
                 .parse::<usize>()
                 .expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("padding".to_string()));
             }
         };
         let input = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("input".to_string()));
             }
         };
-        match self.client.pad_left(padding, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        self.client
+            .pad_left(padding, input)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Pad the given input to the right to the given bytes
     /// E.g. pad_right 4 "0x1234" -> "0x12340000"
     /// E.g. pad_right 4 "[1, 2]" -> "[0x01, 0x02, 0x00, 0x00]"
-    fn handle_pad_right(&mut self, values: Vec<Value>) {
-        info!("Pad");
+    fn handle_pad_right(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Pad");
         let mut args = values.iter();
         let padding = match args.next() {
             Some(input) => input
@@ -425,74 +298,79 @@ impl EventHandler {
                 .parse::<usize>()
                 .expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("padding".to_string()));
             }
         };
         let input = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("input".to_string()));
             }
         };
-        match self.client.pad_right(padding, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        self.client
+            .pad_right(padding, input)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Hash the given input
     /// If the input is classified as some type, hash the bytes
     /// otherwise, hash as utf8
-    fn handle_hash(&mut self, values: Vec<Value>) {
-        info!("Hash");
+    fn handle_hash(&mut self, values: Vec<Value>) -> Result<Value, Error> {
+        tracing::info!("Hash");
         let mut args = values.iter();
         let algo = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No algo provided");
-                return;
+                return Err(Error::MissingArgs("algo".to_string()));
             }
         };
         let input = match args.next() {
             Some(input) => input.as_str().expect("Error: Invalid input"),
             None => {
-                error!("Error: No input provided");
-                return;
+                return Err(Error::MissingArgs("input".to_string()));
             }
         };
-        debug!("algo: {}", algo);
-        debug!("input: {}", input);
-        match self.client.hash(algo, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+        tracing::debug!("algo: {}", algo);
+        tracing::debug!("input: {}", input);
+        self.client
+            .hash(algo, input)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 }
 
-impl Default for EventHandler {
+impl Default for Handler {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::EventHandler;
+impl RequestHandler for Handler {
+    fn handle_request(&mut self, name: &str, args: Vec<Value>) -> Result<Value, Value> {
+        tracing::debug!("Handling request: {}", name);
+        let result = match name {
+            "classify_and_convert" => self.handle_classify_and_convert(args.to_vec()),
+            "classify" => self.handle_classify(args.to_vec()),
+            "flatten_array" => self.handle_flatten_array(args.to_vec()),
+            "chunk_array" => self.handle_chunk_array(args.to_vec()),
+            "reverse_array" => self.handle_reverse_array(args.to_vec()),
+            "rotate_array" => self.handle_rotate_array(args.to_vec()),
+            "generate" => self.handle_generate(args.to_vec()),
+            "random" => self.handle_random(args.to_vec()),
+            "pad_left" => self.handle_pad_left(args.to_vec()),
+            "pad_right" => self.handle_pad_right(args.to_vec()),
+            "hash" => self.handle_hash(args.to_vec()),
+            _ => Err(Error::UnknownRequest(name.to_string())),
+        }
+        .map_err(Value::from);
+        tracing::debug!("Result: {:?}", result);
+        result
+    }
+}
 
-    #[test]
-    fn test_escape() {
-        let test = "[1\n2\n3]";
-        let escaped = EventHandler::escape_match(test);
-        assert_eq!(escaped, "\\[1\\n2\\n3\\]");
+impl neovim_lib::Handler for Handler {
+    fn handle_notify(&mut self, name: &str, args: Vec<Value>) {
+        tracing::debug!("Handling notify {}: {:?}", name, args);
     }
 }
