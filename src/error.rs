@@ -16,5 +16,4 @@ pub enum ConvertError {
 
     #[error("Var error: {0}")]
     VarError(#[from] std::env::VarError),
-
 }

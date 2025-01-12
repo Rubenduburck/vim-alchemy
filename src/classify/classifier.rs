@@ -1,12 +1,12 @@
 use crate::{
     classify::{
         regex::RegexCache,
-        types::{ArrayClassification, Classification},
+        types::{Array, Classification},
     },
     encode::types::{Bracket, Brackets, Separator},
 };
 
-use super::types::IntegerClassification;
+use super::types::Integer;
 
 pub struct Classifier {
     re: RegexCache,
@@ -84,7 +84,7 @@ impl Classifier {
     }
 
     pub fn classify_base<'a>(&'a self, candidate: &'a str, base: i32) -> Classification<'a> {
-        Classification::Integer(IntegerClassification::new(
+        Classification::Integer(Integer::new(
             base,
             self.re.extract_base(base)(candidate).unwrap_or(""),
             self.base_n_err(candidate, base),
@@ -105,7 +105,7 @@ impl Classifier {
                         candidate,
                     );
 
-                Classification::Array(ArrayClassification::new(
+                Classification::Array(Array::new(
                     values.iter().map(|v| self.classify(v)).collect(),
                     &brackets,
                     separator,

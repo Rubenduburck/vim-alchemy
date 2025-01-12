@@ -66,8 +66,11 @@ impl Hasher {
     pub fn hash(&self, decoded: &Decoded) -> Result<Decoded, Error> {
         let mut hasher = self.hasher()?;
         match decoded {
-            Decoded::Array(a) =>  a.iter().for_each(|item|  hasher.update(&item.to_be_bytes())),
-            Decoded::Bytes(_) =>  decoded.to_be_bytes().chunks(32).for_each(|chunk| hasher.update(chunk)),
+            Decoded::Array(a) => a.iter().for_each(|item| hasher.update(&item.to_be_bytes())),
+            Decoded::Bytes(_) => decoded
+                .to_be_bytes()
+                .chunks(32)
+                .for_each(|chunk| hasher.update(chunk)),
         };
         Ok(Decoded::from_be_bytes(&hasher.finalize()))
     }
@@ -75,7 +78,6 @@ impl Hasher {
     pub fn encode(&self, decoded: &Decoded, pad: Option<bool>) -> Result<String, Error> {
         BaseEncoding::new(16).encode(&self.hash(decoded)?, pad)
     }
-
 }
 
 #[cfg(test)]
@@ -86,7 +88,11 @@ mod tests {
     #[test]
     fn test_keccak_256() {
         let input = "test_key";
-        let expected = vec![0xad, 0x62, 0xe2, 0xf, 0x69, 0x55, 0xfd, 0x4, 0xf4, 0x5e, 0xef, 0x12, 0x3e, 0x61, 0xf3, 0xc7, 0x4c, 0xe2, 0x4e, 0x1c, 0xe4, 0xf6, 0xab, 0x27, 0xb, 0x88, 0x6c, 0xd8, 0x60, 0xfd, 0x65, 0xac];
+        let expected = vec![
+            0xad, 0x62, 0xe2, 0xf, 0x69, 0x55, 0xfd, 0x4, 0xf4, 0x5e, 0xef, 0x12, 0x3e, 0x61, 0xf3,
+            0xc7, 0x4c, 0xe2, 0x4e, 0x1c, 0xe4, 0xf6, 0xab, 0x27, 0xb, 0x88, 0x6c, 0xd8, 0x60,
+            0xfd, 0x65, 0xac,
+        ];
         let hasher = Hasher::Keccak(256);
         let decoded = Decoded::from_be_bytes(input.as_bytes());
         println!("decoded {:?}", decoded);

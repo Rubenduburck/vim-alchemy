@@ -1,14 +1,14 @@
 use std::fmt::{Display, Formatter};
 
 use crate::encode::{
-    encoding::{ArrayEncoding, Encoding, BaseEncoding},
+    encoding::{ArrayEncoding, BaseEncoding, Encoding},
     types::{Brackets, Separator},
 };
 
 #[derive(Debug, Default)]
 pub enum Classification<'a> {
-    Array(ArrayClassification<'a>),
-    Integer(IntegerClassification<'a>),
+    Array(Array<'a>),
+    Integer(Integer<'a>),
     #[default]
     Empty,
 }
@@ -62,14 +62,14 @@ impl Classification<'_> {
     }
 }
 
-impl<'a> From<ArrayClassification<'a>> for Classification<'a> {
-    fn from(arr: ArrayClassification<'a>) -> Self {
+impl<'a> From<Array<'a>> for Classification<'a> {
+    fn from(arr: Array<'a>) -> Self {
         Classification::Array(arr)
     }
 }
 
-impl<'a> From<IntegerClassification<'a>> for Classification<'a> {
-    fn from(int: IntegerClassification<'a>) -> Self {
+impl<'a> From<Integer<'a>> for Classification<'a> {
+    fn from(int: Integer<'a>) -> Self {
         Classification::Integer(int)
     }
 }
@@ -96,14 +96,14 @@ impl Classification<'_> {
 }
 
 #[derive(Debug)]
-pub struct ArrayClassification<'a> {
+pub struct Array<'a> {
     pub values: Vec<Vec<Classification<'a>>>,
     pub brackets: Brackets,
     pub separator: Separator,
     pub err: usize,
 }
 
-impl Display for ArrayClassification<'_> {
+impl Display for Array<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -125,13 +125,13 @@ impl Display for ArrayClassification<'_> {
     }
 }
 
-impl<'a> ArrayClassification<'a> {
+impl<'a> Array<'a> {
     pub fn new(
         values: Vec<Vec<Classification<'a>>>,
         brackets: &Brackets,
         separator: Separator,
         err: usize,
-    ) -> ArrayClassification<'a> {
+    ) -> Array<'a> {
         Self {
             values,
             brackets: brackets.clone(),
@@ -162,13 +162,13 @@ impl<'a> ArrayClassification<'a> {
 }
 
 #[derive(Debug)]
-pub struct IntegerClassification<'a> {
+pub struct Integer<'a> {
     pub base: i32,
     pub value: &'a str,
     pub err: usize,
 }
 
-impl Display for IntegerClassification<'_> {
+impl Display for Integer<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.base {
             2 => write!(f, "bin {}", self.value),
@@ -180,7 +180,7 @@ impl Display for IntegerClassification<'_> {
     }
 }
 
-impl<'a> IntegerClassification<'a> {
+impl<'a> Integer<'a> {
     pub fn new(base: i32, value: &'a str, err: usize) -> Self {
         Self { base, value, err }
     }
@@ -192,13 +192,13 @@ mod tests {
 
     #[test]
     fn test_classification_ord() {
-        let left = Classification::Integer(IntegerClassification::new(10, "10", 0));
-        let right = Classification::Integer(IntegerClassification::new(2, "10", 0));
+        let left = Classification::Integer(Integer::new(10, "10", 0));
+        let right = Classification::Integer(Integer::new(2, "10", 0));
         let result = left.cmp(&right);
         assert_eq!(result, std::cmp::Ordering::Less);
 
-        let left = Classification::Integer(IntegerClassification::new(2, "10", 0));
-        let right = Classification::Integer(IntegerClassification::new(16, "10", 0));
+        let left = Classification::Integer(Integer::new(2, "10", 0));
+        let right = Classification::Integer(Integer::new(16, "10", 0));
         let result = left.cmp(&right);
         assert_eq!(result, std::cmp::Ordering::Less);
     }

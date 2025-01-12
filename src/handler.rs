@@ -2,7 +2,7 @@ use neovim_lib::{Neovim, NeovimApi, Session, Value};
 
 use crate::{client::Client, encode::error::Error};
 
-use tracing::{error, info, debug};
+use tracing::{debug, error, info};
 
 pub enum Message {
     ClassifyAndConvert,

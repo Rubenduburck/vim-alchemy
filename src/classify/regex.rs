@@ -99,7 +99,6 @@ impl RegexCache {
     pub fn extract_separators<'a>(&'a self) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
         Self::extract_common(&self.extract_cache.separators)
     }
-
 }
 
 impl Default for RegexCache {

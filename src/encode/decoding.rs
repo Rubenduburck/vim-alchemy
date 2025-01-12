@@ -3,10 +3,10 @@ use base64::{
     engine::{self, general_purpose},
     Engine,
 };
-use rug::Integer;
+use rug::Integer as RugInteger;
 
 use crate::{
-    classify::types::{ArrayClassification, Classification, IntegerClassification},
+    classify::types::{Array, Classification, Integer},
     encode::error::Error,
 };
 
@@ -25,13 +25,13 @@ impl Default for Decoded {
 const BASE_64_ENGINE: engine::GeneralPurpose =
     engine::GeneralPurpose::new(&alphabet::STANDARD, general_purpose::NO_PAD);
 
-impl<'a> TryFrom<&IntegerClassification<'a>> for Decoded {
+impl<'a> TryFrom<&Integer<'a>> for Decoded {
     type Error = Error;
 
-    fn try_from(classification: &IntegerClassification<'a>) -> Result<Self, Self::Error> {
+    fn try_from(classification: &Integer<'a>) -> Result<Self, Self::Error> {
         match classification.base {
             2..=36 => Ok(Decoded::from_le_bytes(
-                &Integer::from_str_radix(classification.value, classification.base)?
+                &RugInteger::from_str_radix(classification.value, classification.base)?
                     .to_digits::<u8>(rug::integer::Order::LsfBe),
             )),
             58 => Ok(Decoded::from_be_bytes(
@@ -45,8 +45,8 @@ impl<'a> TryFrom<&IntegerClassification<'a>> for Decoded {
     }
 }
 
-impl<'a> From<ArrayClassification<'a>> for Decoded {
-    fn from(classification: ArrayClassification<'a>) -> Self {
+impl<'a> From<Array<'a>> for Decoded {
+    fn from(classification: Array<'a>) -> Self {
         Decoded::Array(
             classification
                 .collapse()
@@ -57,8 +57,8 @@ impl<'a> From<ArrayClassification<'a>> for Decoded {
     }
 }
 
-impl<'a> From<&ArrayClassification<'a>> for Decoded {
-    fn from(classification: &ArrayClassification<'a>) -> Self {
+impl<'a> From<&Array<'a>> for Decoded {
+    fn from(classification: &Array<'a>) -> Self {
         Decoded::Array(
             classification
                 .collapse()

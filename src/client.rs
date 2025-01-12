@@ -1,7 +1,10 @@
 use crate::{
     classify::{classifier::Classifier, types::Classification},
     encode::decoding::Decoded,
-    encode::{encoding::{Encoding, BaseEncoding}, hashing::Hasher},
+    encode::{
+        encoding::{BaseEncoding, Encoding},
+        hashing::Hasher,
+    },
     error::ConvertError,
 };
 
@@ -155,7 +158,9 @@ mod tests {
     fn test_client_hex_on_lines() {
         let client = Client::new();
         let lines = "123\n456\n789";
-        let converted = client.classify_and_convert("hex", lines).expect("Failed to convert");
+        let converted = client
+            .classify_and_convert("hex", lines)
+            .expect("Failed to convert");
         assert_eq!(converted, "0x7b\n0x1c8\n0x315");
     }
 
@@ -297,9 +302,19 @@ mod tests {
     #[test]
     fn test_hash() {
         let client = Client::new();
-        let hashed = client.hash("keccak256", "test_key").expect("Failed to convert");
-        assert_eq!(hashed, "0xad62e20f6955fd04f45eef123e61f3c74ce24e1ce4f6ab270b886cd860fd65ac");
-        let hashed = client.hash("keccak256", "0x1234").expect("Failed to convert");
-        assert_eq!(hashed, "0x56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432");
+        let hashed = client
+            .hash("keccak256", "test_key")
+            .expect("Failed to convert");
+        assert_eq!(
+            hashed,
+            "0xad62e20f6955fd04f45eef123e61f3c74ce24e1ce4f6ab270b886cd860fd65ac"
+        );
+        let hashed = client
+            .hash("keccak256", "0x1234")
+            .expect("Failed to convert");
+        assert_eq!(
+            hashed,
+            "0x56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432"
+        );
     }
 }

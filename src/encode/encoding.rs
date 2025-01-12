@@ -29,7 +29,6 @@ impl Encoding {
     const UTF: &'static str = "utf";
     const HEX: &'static str = "hex";
 
-
     pub fn to_lines(&self) -> Encoding {
         Encoding::Array(ArrayEncoding::new(
             vec![self.clone()],
@@ -37,7 +36,6 @@ impl Encoding {
             Some(Separator::from('\n')),
         ))
     }
-
 
     pub fn flatten(&self) -> Encoding {
         match self {
@@ -55,8 +53,6 @@ impl Encoding {
             Encoding::Empty => Ok("".into()),
         }
     }
-
-
 
     pub fn generate(&self, length: usize) -> Result<String, Error> {
         self.encode(&Decoded::from_le_bytes(&vec![0; length]), Some(true))
@@ -81,7 +77,6 @@ pub struct BaseEncoding {
 }
 
 impl BaseEncoding {
-
     const BASE_64_ENGINE: base64::engine::general_purpose::GeneralPurpose =
         base64::engine::general_purpose::GeneralPurpose::new(
             &base64::alphabet::STANDARD,
@@ -312,7 +307,10 @@ impl Ord for Encoding {
             (Encoding::Array(a), Encoding::Array(b)) => a.cmp(b),
             (Encoding::Base(_), Encoding::Array(_)) => std::cmp::Ordering::Less,
             (Encoding::Array(_), Encoding::Base(_)) => std::cmp::Ordering::Greater,
-            (Encoding::Base(BaseEncoding{base: a}), Encoding::Base(BaseEncoding{base: b})) => match (*a, *b) {
+            (
+                Encoding::Base(BaseEncoding { base: a }),
+                Encoding::Base(BaseEncoding { base: b }),
+            ) => match (*a, *b) {
                 (10, _) => std::cmp::Ordering::Less,
                 (_, 10) => std::cmp::Ordering::Greater,
                 (64, 58) => std::cmp::Ordering::Less,
@@ -427,7 +425,13 @@ mod tests {
             Encoding::Base(BaseEncoding::new(64)),
             Encoding::Base(BaseEncoding::new(10)),
             Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16))].into()),
-            Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16)), Encoding::Base(BaseEncoding::new(10))].into()),
+            Encoding::Array(
+                vec![
+                    Encoding::Base(BaseEncoding::new(16)),
+                    Encoding::Base(BaseEncoding::new(10)),
+                ]
+                .into(),
+            ),
             Encoding::Base(BaseEncoding::new(58)),
             Encoding::Base(BaseEncoding::new(3)),
         ];
@@ -512,7 +516,11 @@ mod tests {
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Array(ArrayEncoding::new(
-                            vec![Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10))],
+                            vec![
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                            ],
                             None,
                             None,
                         )),
@@ -556,7 +564,11 @@ mod tests {
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Array(ArrayEncoding::new(
-                            vec![Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10))],
+                            vec![
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                            ],
                             None,
                             None,
                         )),
@@ -596,7 +608,11 @@ mod tests {
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Array(ArrayEncoding::new(
-                            vec![Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10))],
+                            vec![
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                            ],
                             None,
                             None,
                         )),
@@ -619,7 +635,10 @@ mod tests {
             Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
         ]);
         let result = Encoding::Array(ArrayEncoding::new(
-            vec![Encoding::Base(BaseEncoding::new(16)), Encoding::Base(BaseEncoding::new(10))],
+            vec![
+                Encoding::Base(BaseEncoding::new(16)),
+                Encoding::Base(BaseEncoding::new(10)),
+            ],
             None,
             Some(Separator::from('\n')),
         ))
@@ -634,7 +653,10 @@ mod tests {
             Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
         ]);
         let result = Encoding::Array(ArrayEncoding::new(
-            vec![Encoding::Base(BaseEncoding::new(16)), Encoding::Base(BaseEncoding::new(10))],
+            vec![
+                Encoding::Base(BaseEncoding::new(16)),
+                Encoding::Base(BaseEncoding::new(10)),
+            ],
             Some(Bracket::Round.into()),
             Some(Separator::from(",")),
         ))
@@ -645,8 +667,13 @@ mod tests {
     #[test]
     fn test_encode_hash() {
         let test_input = "test_key";
-        let hashed = Hasher::Keccak(256).encode(&Decoded::from_be_bytes(test_input.as_bytes()), Some(true)).unwrap();
-        assert_eq!(&hashed, "0xad62e20f6955fd04f45eef123e61f3c74ce24e1ce4f6ab270b886cd860fd65ac");
+        let hashed = Hasher::Keccak(256)
+            .encode(&Decoded::from_be_bytes(test_input.as_bytes()), Some(true))
+            .unwrap();
+        assert_eq!(
+            &hashed,
+            "0xad62e20f6955fd04f45eef123e61f3c74ce24e1ce4f6ab270b886cd860fd65ac"
+        );
         println!("{:?}", hashed);
     }
 
