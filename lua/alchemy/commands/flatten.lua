@@ -10,10 +10,9 @@ local function flatten(args, opts)
 
 	local result = Rpc.flatten_array(params)
 	if not result then
-		print("no result")
+		vim.notify("Failed to flatten array", vim.log.levels.ERROR)
 		return
 	end
-	print("result: " .. vim.inspect(result))
 
 	Utils.replace_selection(params.bufnr, params.selection, result)
 end

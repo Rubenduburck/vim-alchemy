@@ -17,10 +17,9 @@ function M.pad_left(args, opts)
 
 	local result = Rpc.pad_left(params)
 	if not result then
-		print("no result")
+		vim.notify("Failed to pad left", vim.log.levels.ERROR)
 		return
 	end
-	print("result: " .. vim.inspect(result))
 
 	Utils.replace_selection(params.bufnr, params.selection, result)
 end
@@ -38,10 +37,9 @@ function M.pad_right(args, opts)
 
 	local result = Rpc.pad_right(params)
 	if not result then
-		print("no result")
+		vim.notify("Failed to pad right", vim.log.levels.ERROR)
 		return
 	end
-	print("result: " .. vim.inspect(result))
 
 	Utils.replace_selection(params.bufnr, params.selection, result)
 end

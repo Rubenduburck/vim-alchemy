@@ -16,10 +16,9 @@ local function rotate(args, opts)
 
 	local result = Rpc.rotate_array(params)
 	if not result then
-		print("no result")
+		vim.notify("Failed to rotate array", vim.log.levels.ERROR)
 		return
 	end
-	print("result: " .. vim.inspect(result))
 
 	Utils.replace_selection(params.bufnr, params.selection, result)
 end

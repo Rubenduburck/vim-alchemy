@@ -18,7 +18,6 @@ function M.get_input_encoding(params, callback)
 
 	-- Get classifications from RPC
 	local classifications = Rpc.classify(params)
-	print("classifications: " .. vim.inspect(classifications))
 	if not classifications then
 		callback(nil)
 		return
@@ -26,7 +25,6 @@ function M.get_input_encoding(params, callback)
 
 	-- Collapse classifications to unique encodings
 	classifications = Utils.collapse_on_key(classifications, "encoding")
-	vim.notify("classifications: " .. vim.inspect(classifications))
 
 	-- If there's only one encoding or mode is "auto", use the first one
 	if #classifications == 1 or params.input_encoding == "auto" then
@@ -204,7 +202,6 @@ function M.test(opts)
 end
 
 function M.classify_and_convert(opts)
-	print("classify_and_convert opts " .. vim.inspect(opts))
 	-- Get selected text
 	opts.selection = Utils.get_visual_selection()
 	opts.bufnr = vim.api.nvim_get_current_buf()
@@ -216,8 +213,6 @@ function M.classify_and_convert(opts)
 		return
 	end
 
-	print("classifications " .. vim.inspect(classifications))
-	print("opts " .. vim.inspect(opts))
 
 	-- Handle input encoding selection
 	local function process_conversion(input_encoding)
@@ -231,13 +226,12 @@ function M.classify_and_convert(opts)
 		if not result then
 			return
 		end
-		print("result " .. vim.inspect(result))
 
 		-- Handle the conversion result
 		local count = vim.tbl_count(result)
 
 		if count == 0 then
-			vim.notify("No results available to process.", vim.log.levels.WARN)
+			vim.notify("No results available to process.", vim.log.levels.ERROR)
 			return
 		elseif count == 1 then
 			local key, value = next(result)

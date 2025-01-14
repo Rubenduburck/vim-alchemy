@@ -72,7 +72,6 @@ function M.classify_and_convert(args, opts)
 		Utils.replace_selection(params.bufnr, params.selection, result)
 		return
 	else
-		-- NOTE: should never get here
 		Ui.nested_select(result, function(value)
 			-- Replace selection with selected value
 			Utils.replace_selection(params.bufnr, params.selection, value)

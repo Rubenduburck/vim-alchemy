@@ -19,7 +19,7 @@ local function new(args, opts)
 
 	local result = Rpc.generate(params)
 	if not result then
-		print("no result")
+		vim.notify("Failed to generate new data", vim.log.levels.ERROR)
 		return
 	end
 	Utils.replace_selection(params.bufnr, params.selection, result)
