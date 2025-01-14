@@ -81,6 +81,7 @@ pub enum Request {
     Hash {
         algo: Vec<String>,
         selection: Selection,
+        input_encoding: Vec<String>,
     },
     Unknown(Vec<Value>),
     Setup(crate::client::Config),
@@ -160,6 +161,7 @@ impl TryFrom<(&str, Vec<Value>)> for Request {
             Self::HASH => Ok(Request::Hash {
                 algo: get_array(params, "algo")?,
                 selection: get_param(params, "selection")?,
+                input_encoding: get_array(params, "input_encoding")?,
             }),
             Self::SETUP => Ok(Request::Setup(get_param(params, "config")?)),
             _ => Err(Error::UnknownRequest(method.to_string())),
@@ -215,26 +217,22 @@ impl From<Conversions> for Value {
 }
 
 #[derive(Debug)]
-struct Hashings(HashMap<String, Hashing>);
-
-#[derive(Debug)]
 pub struct Hashing {
-    pub input: String,
     pub output: String,
 }
 
 impl From<Hashing> for Value {
     fn from(value: Hashing) -> Self {
         Value::Map(
-            vec![
-                (Value::from("input"), Value::from(value.input)),
-                (Value::from("output"), Value::from(value.output)),
-            ]
-            .into_iter()
-            .collect(),
+            vec![(Value::from("output"), Value::from(value.output))]
+                .into_iter()
+                .collect(),
         )
     }
 }
+
+#[derive(Debug)]
+struct Hashings(HashMap<String, HashMap<String, Hashing>>);
 
 impl From<Hashings> for Value {
     fn from(value: Hashings) -> Self {
@@ -242,7 +240,16 @@ impl From<Hashings> for Value {
             value
                 .0
                 .into_iter()
-                .map(|(k, v)| (Value::from(k), Value::from(v)))
+                .map(|(k, v)| {
+                    (
+                        Value::from(k),
+                        Value::Map(
+                            v.into_iter()
+                                .map(|(k, v)| (Value::from(k), Value::from(v)))
+                                .collect::<Vec<(Value, Value)>>(),
+                        ),
+                    )
+                })
                 .collect::<Vec<(Value, Value)>>(),
         )
     }
@@ -410,21 +417,37 @@ impl Handler {
     /// Hash the given input
     /// If the input is classified as some type, hash the bytes
     /// otherwise, hash as utf8
-    fn handle_hash(&mut self, algo: Vec<String>, input: &str) -> Result<Value, Error> {
+    fn handle_hash(
+        &mut self,
+        algo: Vec<String>,
+        input: &str,
+        input_encoding: Vec<String>,
+    ) -> Result<Value, Error> {
         tracing::info!("Hash");
-        tracing::debug!("algo: {:?}", algo);
-        tracing::debug!("input: {}", input);
-        Ok(algo
-            .into_iter()
-            .flat_map(|a| {
-                self.client.hash(&a, input).map(|h| Hashing {
-                    input: input.to_string(),
-                    output: h,
-                })
+        let results = input_encoding
+            .iter()
+            .flat_map(|encoding| {
+                let values = algo
+                    .iter()
+                    .flat_map(|algo| {
+                        self.client.hash(algo, input, encoding).map(|output| {
+                            (
+                                algo.clone(),
+                                Hashing {
+                                    output: output.to_string(),
+                                },
+                            )
+                        })
+                    })
+                    .collect::<HashMap<String, Hashing>>();
+                if values.is_empty() {
+                    None
+                } else {
+                    Some((encoding.clone(), values))
+                }
             })
-            .map(Value::from)
-            .collect::<Vec<Value>>()
-            .into())
+            .collect::<HashMap<String, HashMap<String, Hashing>>>();
+        Ok(Hashings(results).into())
     }
 }
 
@@ -482,7 +505,11 @@ impl RequestHandler for Handler {
                 tracing::info!("Stopping");
                 std::process::exit(0);
             }
-            Request::Hash { algo, selection } => self.handle_hash(algo, &selection.text),
+            Request::Hash {
+                algo,
+                selection,
+                input_encoding,
+            } => self.handle_hash(algo, &selection.text, input_encoding),
             Request::Unknown(values) => {
                 Err(Error::UnknownRequest(format!("{}, {:?}", name, values)))
             }

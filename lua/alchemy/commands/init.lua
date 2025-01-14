@@ -18,6 +18,7 @@ function M.get_input_encoding(params, callback)
 
 	-- Get classifications from RPC
 	local classifications = Rpc.classify(params)
+    print("classifications: " .. vim.inspect(classifications))
 	if not classifications then
 		callback(nil)
 		return
@@ -36,28 +37,6 @@ function M.get_input_encoding(params, callback)
 	-- If we're here, we need user selection (params.input_encoding == "select")
 	Ui.nested_select(classifications, function(encoding)
 		callback(encoding)
-	end)
-end
-
-function M.get_hashing_algo(params, callback)
-	-- If params.input_encoding is not "auto" or "select", just return it directly
-	if params.algo ~= "select" then
-		callback(params.algo)
-		return
-	end
-
-	-- Collapse classifications to unique encodings
-	local hashers = Config.options.hashers
-
-	-- If there's only one encoding or mode is "auto", use the first one
-	if #hashers == 1 then
-		callback(hashers[1])
-		return
-	end
-
-	-- If we're here, we need user selection (params.input_encoding == "select")
-	Ui.nested_select(hashers, function(algo)
-		callback(algo)
 	end)
 end
 

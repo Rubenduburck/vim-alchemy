@@ -19,40 +19,33 @@ local function hash(args, opts)
 		params.algo = args[2]
 	end
 
-    print("algo: " .. (params.algo or "nil"))
-    print("input_encoding: " .. (params.input_encoding or "nil"))
+	print("algo: " .. (params.algo or "nil"))
+	print("input_encoding: " .. (params.input_encoding or "nil"))
 
 	-- Get input encoding and continue with conversion after we have it
-	Commands.get_hashing_algo(params, function(algo)
-		params.algo = algo
-		print("algo: " .. (algo or "nil"))
+	-- Get input encoding
+	Commands.get_input_encoding(params, function(encoding)
+		params.input_encoding = encoding
+		print("encoding: " .. (encoding or "nil"))
 
-		-- Get input encoding
-		Commands.get_input_encoding(params, function(encoding)
-			params.input_encoding = encoding
-			print("encoding: " .. (encoding or "nil"))
+		if not params.algo or params.algo == "select" then
+			params.algo = Config.options.hashers
+		end
 
-			-- Hash
-			local result = Rpc.hash(params)
+		local hashes = Rpc.hash(params)
+		hashes = Utils.collapse_on_key(hashes, "output")
+		print("hashes: " .. vim.inspect(hashes))
 
-			if not result then
-				print("no result")
-				return
-			end
-			result = Utils.collapse_on_key(result, "output")
-
-			if type(result) == "string" then
-				-- If result is a string, replace selection with it
-				Utils.replace_selection(params.bufnr, params.selection, result)
-				return
-			else
-				-- If result is a table, show a nested select
-				Ui.nested_select(result, function(value)
-					-- Replace selection with selected value
-					Utils.replace_selection(params.bufnr, params.selection, value)
-				end)
-			end
-		end)
+		if not hashes then
+			vim.notify("No hashes found")
+			return
+		elseif type(hashes) == "string" then
+			Utils.replace_selection(params.bufnr, params.selection, hashes)
+		else
+			Ui.nested_select(hashes, function(selection)
+				Utils.replace_selection(params.bufnr, params.selection, selection)
+			end)
+		end
 	end)
 end
 

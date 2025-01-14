@@ -29,21 +29,23 @@ impl Display for Classification<'_> {
 
 impl From<&Classification<'_>> for Value {
     fn from(classification: &Classification) -> Self {
-        vec![
-            (
-                Value::from("encoding"),
-                Value::from(&classification.encoding()),
-            ),
-            (
-                Value::from("score"),
-                Value::from(classification.score() as i64),
-            ),
-            (
-                Value::from("value"),
-                Value::from(classification.value_string()),
-            ),
-        ]
-        .into()
+        fn to_map(classification: &Classification) -> Value {
+            Value::Map(vec![
+                (
+                    Value::from("encoding"),
+                    Value::from(&classification.encoding()),
+                ),
+                (
+                    Value::from("score"),
+                    Value::from(classification.score() as i64),
+                ),
+                (
+                    Value::from("value"),
+                    Value::from(classification.value_string()),
+                ),
+            ])
+        }
+        to_map(classification)
     }
 }
 
@@ -85,10 +87,10 @@ impl<'a> From<Integer<'a>> for Classification<'a> {
 impl Classification<'_> {
     pub fn encoding(&self) -> Encoding {
         match self {
-            Classification::Array(v) => Encoding::Array(ArrayEncoding::new(
-                v.collapse().iter().map(|c| c.encoding()).collect(),
-                Some(v.brackets.clone()),
-                Some(v.separator),
+            Classification::Array(arr) => Encoding::Array(ArrayEncoding::new(
+                arr.collapse().iter().map(|c| c.encoding()).collect(),
+                Some(arr.brackets.clone()),
+                Some(arr.separator),
             )),
             Classification::Integer(i) => Encoding::Base(BaseEncoding::new(i.base)),
             Classification::Text(t) => Encoding::Text(t.encoding),
@@ -114,7 +116,12 @@ impl Classification<'_> {
 
     pub fn value_string(&self) -> String {
         match self {
-            Classification::Array(arr) => arr.value_string(),
+            Classification::Array(arr) => arr
+                .collapse()
+                .iter()
+                .map(|c| c.value_string())
+                .collect::<Vec<_>>()
+                .join(&arr.separator.to_string()),
             Classification::Integer(int) => int.value_string(),
             Classification::Text(text) => text.value_string(),
             Classification::Empty => String::new(),
@@ -192,6 +199,13 @@ impl<'a> Array<'a> {
             .collect()
     }
 
+    // Turn array classification into array of arrayclassifications with one classification
+    // Only if the classification occurs in every column
+    pub fn transpose(&self) -> Vec<Classification> {
+        // TODO: add this for better array classification
+        todo!()
+    }
+
     pub fn values(&self) -> &Vec<Vec<Classification>> {
         &self.values
     }
@@ -227,7 +241,12 @@ pub struct Integer<'a> {
 
 impl Display for Integer<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{base-{}, {}, {}}}", self.base, self.value, self.score)
+        match self.base {
+            2 => write!(f, "{}", Encoding::BINARY),
+            10 => write!(f, "{}", Encoding::INTEGER),
+            16 => write!(f, "{}", Encoding::HEX),
+            _ => write!(f, "{{base-{}, {}, {}}}", self.base, self.value, self.score),
+        }
     }
 }
 
@@ -288,4 +307,50 @@ mod tests {
         let result = left.cmp(&right);
         assert_eq!(result, std::cmp::Ordering::Less);
     }
+
+    // TODO: 
+    //#[test]
+    //fn test_flatten() {
+    //    let arr_inner_1 = Array::new(
+    //        vec![
+    //            vec![
+    //                Classification::Integer(Integer::new(10, "10", 0)),
+    //                Classification::Integer(Integer::new(16, "10", 0)),
+    //            ],
+    //            vec![
+    //                Classification::Integer(Integer::new(10, "10", 0)),
+    //                Classification::Integer(Integer::new(16, "10", 0)),
+    //            ],
+    //        ],
+    //        &Brackets::default(),
+    //        Separator::default(),
+    //        0,
+    //    );
+    //    let arr_inner_2 = Array::new(
+    //        vec![
+    //            vec![
+    //                Classification::Integer(Integer::new(10, "10", 0)),
+    //                Classification::Integer(Integer::new(16, "10", 0)),
+    //            ],
+    //            vec![
+    //                Classification::Integer(Integer::new(10, "10", 0)),
+    //                Classification::Integer(Integer::new(16, "10", 0)),
+    //            ],
+    //        ],
+    //        &Brackets::default(),
+    //        Separator::default(),
+    //        0,
+    //    );
+    //    let arr = Array::new(
+    //        vec![
+    //            vec![Classification::Array(arr_inner_1)],
+    //            vec![Classification::Array(arr_inner_2)],
+    //        ],
+    //        &Brackets::default(),
+    //        Separator::default(),
+    //        0,
+    //    );
+    //    let result = arr.flatten();
+    //    assert_eq!(result.len(), 2);
+    //}
 }

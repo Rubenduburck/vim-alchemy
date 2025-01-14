@@ -6,7 +6,7 @@ use base64::{
 use rug::Integer as RugInteger;
 
 use crate::{
-    classify::types::{Array, Classification, Integer},
+    classify::types::{Array, Classification, Integer, Text},
     encode::error::Error,
 };
 
@@ -96,11 +96,19 @@ impl<'a> From<&Array<'a>> for Decoded {
     }
 }
 
+// TODO: check if LE or BE is correct
+impl<'a> From<&Text<'a>> for Decoded {
+    fn from(classification: &Text<'a>) -> Self {
+        Decoded::from_be_bytes(classification.value.as_bytes())
+    }
+}
+
 impl<'a> From<&Classification<'a>> for Decoded {
     fn from(classification: &Classification<'a>) -> Self {
         match classification {
             Classification::Array(a) => Decoded::from(a),
             Classification::Integer(i) => Decoded::try_from(i).unwrap_or_default(),
+            Classification::Text(t) => Decoded::from(t),
             _ => Decoded::default(),
         }
     }

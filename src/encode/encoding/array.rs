@@ -1,8 +1,8 @@
 use super::{
     super::decoding::Decoded,
-    super::error::Error,
-    super::types::{Brackets,Bracket, Separator},
     super::encoding::Encoding,
+    super::error::Error,
+    super::types::{Bracket, Brackets, Separator},
 };
 
 #[derive(Debug, Clone)]
@@ -14,25 +14,47 @@ pub struct ArrayEncoding {
 
 impl std::fmt::Display for ArrayEncoding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let values = self
-            .values
-            .iter()
-            .map(|v| v.to_string())
-            .collect::<Vec<String>>()
-            .join(&self.separator.to_string());
-        write!(
-            f,
-            "{}{}{}",
-            self.brackets
-                .open()
-                .map(|c| c.to_string())
-                .unwrap_or_default(),
-            values,
-            self.brackets
-                .close()
-                .map(|c| c.to_string())
-                .unwrap_or_default(),
-        )
+        // Test if all encodings are the same
+        let same = self.values.iter().all(|v| v == &self.values[0]);
+        let count = self.values.len();
+        if same && count > 1 {
+            let value = self.values[0].to_string();
+            let count = self.values.len();
+            write!(
+                f,
+                "{}{};{}{}",
+                self.brackets
+                    .open()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default(),
+                value,
+                count,
+                self.brackets
+                    .close()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default(),
+            )
+        } else {
+            let values = self
+                .values
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join(&self.separator.to_string());
+            write!(
+                f,
+                "{}{}{}",
+                self.brackets
+                    .open()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default(),
+                values,
+                self.brackets
+                    .close()
+                    .map(|c| c.to_string())
+                    .unwrap_or_default(),
+            )
+        }
     }
 }
 

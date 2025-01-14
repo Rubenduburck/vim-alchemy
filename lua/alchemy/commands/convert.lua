@@ -30,13 +30,12 @@ local function convert(args, opts)
 		end
 		local result = Rpc.convert(params)
 
-		if not result then
-			print("no result")
-			return
-		end
 		result = Utils.collapse_on_key(result, "output")
 
-		if type(result) == "string" then
+		if result == nil then
+			vim.notify("No result found")
+			return
+		elseif type(result) == "string" then
 			-- If result is a string, replace selection with it
 			Utils.replace_selection(params.bufnr, params.selection, result)
 			return

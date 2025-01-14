@@ -68,6 +68,10 @@ end
 -- Function to handle nested selection
 
 function M.nested_select(data, callback, history, preview_win)
+    if next(data) == nil then
+        vim.notify("Nothing to select")
+        return
+    end
 	history = history or {}
 
 	-- Get keys from current level

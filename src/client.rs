@@ -88,16 +88,12 @@ impl Client {
     pub fn classify_and_convert(&self, encoding: &str, input: &str) -> Result<String, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
-        println!("Best match: {:?}", best);
         let mut encoding = Encoding::from(encoding);
         if matches!(&best, Classification::Array(arr) if arr.is_lines()) {
-            println!("Converting to lines");
             encoding = encoding.to_lines();
         }
-        println!("Encoding: {:?}", encoding);
 
         let decoded = Decoded::from(&best);
-        println!("Decoded: {:?}", decoded);
         Ok(encoding.encode(&decoded, pad)?)
     }
 
@@ -163,7 +159,22 @@ impl Client {
         Ok(encoded)
     }
 
-    pub fn hash(&self, algorithm: &str, input: &str) -> Result<String, Error> {
+    #[tracing::instrument(skip(self))]
+    pub fn hash(
+        &self,
+        algorithm: &str,
+        input: &str,
+        input_encoding: &str,
+    ) -> Result<String, Error> {
+        let classification = self.classify_with(input_encoding, input);
+        let hash_encoding = Hasher::try_from(algorithm)?;
+        let decoded = Decoded::from(&classification);
+        let hash = hash_encoding.hash(&decoded)?;
+        let encoded = Encoding::Base(BaseEncoding::new(16)).encode(&hash, Some(true))?;
+        Ok(encoded)
+    }
+
+    pub fn classify_and_hash(&self, algorithm: &str, input: &str) -> Result<String, Error> {
         let best = self.classify_best_match(input);
         let hash_encoding = Hasher::try_from(algorithm)?;
         let encoded = if best.score() > 0 {
@@ -175,7 +186,6 @@ impl Client {
             let hash = hash_encoding.hash(&decoded)?;
             best.encoding().encode(&hash, Some(true))?
         };
-
         Ok(encoded)
     }
 }
@@ -206,8 +216,14 @@ mod tests {
         let test_set = [
             "[\n0x0,\n 0x0,\n 0x90,\n 0x78,\n 0x56,\n 0x34,\n 0x12\n]",
             "[0x0, 0x0, 0x90, 0x78, 0x56, 0x34, 0x12]",
+"[0x21, 0x08, 0x77, 0x3a, 0x2d, 0x8f, 0x6e, 0x89, 0x24, 0xf0, 0x6c, 0x1f, 0x58, 0x81, 0x16, 0xfd, 0x98, 0x7a, 0x49, 0x54, 0xc9, 0xf5, 0x6f, 0xfd, 0xd4, 0x5e, 0x03, 0x93, 0x3d, 0x23, 0x60, 0x3e]"
+
         ];
-        let expected = vec!["0x12345678900000"];
+        let expected = vec![
+            "0x12345678900000",
+            "0x12345678900000",
+            "0x3e60233d93035ed4fd6ff5c954497a98fd1681581f6cf024896e8f2d3a770821",
+        ];
 
         for (test, expect) in test_set.iter().zip(expected.into_iter().cycle()) {
             println!("Test: {}", test);
@@ -337,17 +353,30 @@ mod tests {
     }
 
     #[test]
+    #[tracing_test::traced_test]
     fn test_hash() {
         let client = Client::new();
+
         let hashed = client
-            .hash("keccak256", "test_key")
+            .hash("keccak256", "getBalance()", "ascii")
+            .expect("Failed to convert");
+        assert_eq!(
+            hashed,
+            "0x12065fe058ec54d32b956897063181d660e7d27f9bb883d28d5cc5ab3423e23c"
+        );
+
+        panic!();
+
+        let hashed = client
+            .hash("keccak256", "test_key", "ascii")
             .expect("Failed to convert");
         assert_eq!(
             hashed,
             "0xad62e20f6955fd04f45eef123e61f3c74ce24e1ce4f6ab270b886cd860fd65ac"
         );
+
         let hashed = client
-            .hash("keccak256", "0x1234")
+            .hash("keccak256", "0x1234", "hex")
             .expect("Failed to convert");
         assert_eq!(
             hashed,

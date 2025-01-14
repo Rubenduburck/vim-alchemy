@@ -42,12 +42,13 @@ impl From<&Encoding> for Value {
 }
 
 impl Encoding {
-    const INTEGER: &'static str = "int";
-    const BINARY: &'static str = "bin";
-    const BYTES: &'static str = "bytes";
-    const BASE: &'static str = "base";
-    const UTF: &'static str = "utf";
-    const HEX: &'static str = "hex";
+    pub(crate) const INTEGER: &'static str = "int";
+    pub(crate) const BINARY: &'static str = "bin";
+    pub(crate) const BYTES: &'static str = "bytes";
+    pub(crate) const BASE: &'static str = "base";
+    pub(crate) const UTF: &'static str = "utf";
+    pub(crate) const HEX: &'static str = "hex";
+    pub(crate) const ASCII: &'static str = "ascii";
 
     pub fn to_lines(&self) -> Encoding {
         Encoding::Array(ArrayEncoding::new(
@@ -89,7 +90,6 @@ impl Encoding {
             Some(true),
         )
     }
-
 }
 
 // Some ugly stuff in here, hardcoded priorities
@@ -131,14 +131,32 @@ impl From<&str> for Encoding {
         let s = s.trim().to_lowercase();
 
         // [hex, int, base12] -> Array([Base(16), Base(10), Base(12)])
+        // [hex; 3] -> Array([Base(16), Base(16), Base(16)])
         if s.starts_with('[') && s.ends_with(']') {
-            Encoding::Array(
-                s[1..s.len() - 1]
+            // TODO: make this smoother
+            let inner = s[1..s.len() - 1].trim();
+            let split = inner.split(';').collect::<Vec<&str>>();
+            let values = if split.len() == 2 {
+                let count = split[1].trim().parse::<usize>().unwrap_or(1);
+                let inner = split[0]
+                    .split(',')
+                    .map(|e| Encoding::from(e.trim()))
+                    .collect::<Vec<_>>();
+                let values = inner
+                    .iter()
+                    .cycle()
+                    .take(count)
+                    .cloned()
+                    .collect::<Vec<Encoding>>();
+                values.into()
+            } else {
+                inner
                     .split(',')
                     .map(|e| Encoding::from(e.trim()))
                     .collect::<Vec<_>>()
-                    .into(),
-            )
+                    .into()
+            };
+            Encoding::Array(values)
 
         // base64, base-64, base_64, etc -> Base(64)
         } else if let Some(stripped) = s.strip_prefix(Self::BASE) {
@@ -163,6 +181,7 @@ impl From<&str> for Encoding {
                 Self::HEX => Encoding::Base(BaseEncoding::new(16)),
                 Self::INTEGER => Encoding::Base(BaseEncoding::new(10)),
                 Self::BYTES => Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16))].into()),
+                Self::ASCII => Encoding::Text(TextEncoding::Ascii),
                 _ => Encoding::Base(BaseEncoding::new(10)),
             }
         }
@@ -222,6 +241,7 @@ mod tests {
             "[hex, int]",
             "base58",
             "base3",
+            "[hex; 2]",
         ];
         let expected_output = vec![
             Encoding::Base(BaseEncoding::new(16)),
@@ -237,6 +257,13 @@ mod tests {
             ),
             Encoding::Base(BaseEncoding::new(58)),
             Encoding::Base(BaseEncoding::new(3)),
+            Encoding::Array(
+                vec![
+                    Encoding::Base(BaseEncoding::new(16)),
+                    Encoding::Base(BaseEncoding::new(16)),
+                ]
+                .into(),
+            ),
         ];
         for (i, e) in test_input.iter().zip(expected_output.iter()) {
             assert_eq!(Encoding::from(*i), *e);
