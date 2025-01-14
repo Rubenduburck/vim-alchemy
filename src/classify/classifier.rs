@@ -398,11 +398,9 @@ mod tests {
                     panic!("expected array")
                 },
             }
-            println!("candidate {:?}", candidate);
-            println!("best {:?}", best);
         }
 
-        // FIXME: This test is failing
+        // FIXME: Test no longer works after textencoding was added
         //const ALMOST_ARRAY_VALUES: [&str; 3] = ["[1, 2, 3", "1, 2, 3]", "(1, 4, 5"];
         //for candidate in ALMOST_ARRAY_VALUES.iter() {
         //    let c = cl.classify(candidate);
@@ -411,10 +409,11 @@ mod tests {
         //        Classification::Array(a) => {
         //            assert_eq!(a.collapse().len(), 3);
         //        }
-        //        _ => panic!("expected array"),
+        //        _ => {
+        //            println!("{:?}", best);
+        //            panic!("expected array")
+        //        },
         //    }
-        //    println!("candidate {:?}", candidate);
-        //    println!("best {:?}", best);
         //}
     }
 }

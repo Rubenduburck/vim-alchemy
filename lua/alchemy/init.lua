@@ -10,12 +10,19 @@
 --@brief [[
 --
 --Commands:
---TODO: add commands
+--
+-- ':Alch classify_and_convert <to>' - auto classify and convert data
+-- ':Alch classify_and_hash <algo>' - auto classify and hash data
+-- ':Alch hash <from> <algo>' - hash data
+-- ':Alch convert <from> <to>' - convert data from one encoding to another
+-- ':Alch flatten <from>' - flatten data
+-- ':Alch pad_left <from> <to>' - pad data to a specific length from the left
+-- ':Alch pad_right <from> <to>' - pad data to a specific length from the right
+-- ':Alch random <to>' - generate random data for some encoding
+-- ':Alch reverse <from>' - reverse data
+-- ':Alch rotate <from> <count>' - rotate data by a specific count
 
 local M = {}
-
-local Config = require("alchemy.config")
-local Commands = require("alchemy.commands")
 
 ---@params opts? AlchemyConfig
 function M.setup(opts)

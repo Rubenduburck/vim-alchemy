@@ -219,7 +219,7 @@ impl Default for Client {
 mod tests {
     use super::*;
 
-    // FIXME: Test is failing
+    // FIXME: Test no longer works after adding textencoding
     //#[test]
     //fn test_client_hex_on_lines() {
     //    let client = Client::new();
