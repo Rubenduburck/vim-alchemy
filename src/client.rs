@@ -1,22 +1,46 @@
+use neovim_lib::Value;
+
 use crate::{
     classify::{classifier::Classifier, types::Classification},
-    encode::decoding::Decoded,
     encode::{
+        decoding::Decoded,
         encoding::{BaseEncoding, Encoding},
         hashing::Hasher,
     },
     error::Error,
+    get_param,
 };
 
 pub struct Client {
     classifier: Classifier,
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct Config {
+    pub(crate) classifier: crate::classify::classifier::Config,
+}
+
+impl From<Value> for Config {
+    fn from(value: Value) -> Self {
+        if let Value::Map(map) = value {
+            Self {
+                classifier: get_param(&map, "classifier").unwrap_or_default(),
+            }
+        } else {
+            Self::default()
+        }
+    }
+}
+
 impl Client {
     pub fn new() -> Self {
         Self {
-            classifier: Classifier::new(),
+            classifier: Classifier::default(),
         }
+    }
+
+    pub fn setup(&mut self, cfg: Config) {
+        self.classifier.setup(cfg.classifier);
     }
 
     pub fn classify<'a>(&'a self, input: &'a str) -> Vec<Classification<'a>> {
@@ -27,9 +51,22 @@ impl Client {
         self.classify(input).into_iter().min().unwrap_or_default()
     }
 
-    pub fn force_classify<'a>(&'a self, encoding: &str, input: &'a str) -> Classification<'a> {
+    pub fn classify_with<'a>(&'a self, encoding: &str, input: &'a str) -> Classification<'a> {
         self.classifier
-            .force_classify(&Encoding::from(encoding), input)
+            .classify_with(&Encoding::from(encoding), input)
+    }
+
+    pub fn decode(&self, encoding: &str, input: &str) -> Result<Decoded, Error> {
+        let classification = self.classify_with(encoding, input);
+        tracing::debug!("Classification: {:?}", classification);
+        let decoded = Decoded::from(&classification);
+        Ok(decoded)
+    }
+
+    pub fn encode(&self, encoding: &str, input: &Decoded) -> Result<String, Error> {
+        let encoding = Encoding::from(encoding);
+        let encoded = encoding.encode(input, None)?;
+        Ok(encoded)
     }
 
     pub fn convert(
@@ -39,48 +76,29 @@ impl Client {
         input: &str,
     ) -> Result<String, Error> {
         let pad = Some(false);
-        let classification = self.force_classify(input_encoding, input);
+        let classification = self.classify_with(input_encoding, input);
         let encoding = Encoding::from(encoding);
-        if matches!(&classification, Classification::Array(arr) if arr.is_lines()) {
-            return Ok(encoding
-                .to_lines()
-                .encode(&Decoded::from(&classification), pad)?);
-        }
         let decoded = Decoded::from(&classification);
+        if matches!(&classification, Classification::Array(arr) if arr.is_lines()) {
+            return Ok(encoding.to_lines().encode(&decoded, pad)?);
+        }
         Ok(encoding.encode(&decoded, pad)?)
     }
 
     pub fn classify_and_convert(&self, encoding: &str, input: &str) -> Result<String, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
+        println!("Best match: {:?}", best);
         let mut encoding = Encoding::from(encoding);
         if matches!(&best, Classification::Array(arr) if arr.is_lines()) {
+            println!("Converting to lines");
             encoding = encoding.to_lines();
         }
+        println!("Encoding: {:?}", encoding);
 
         let decoded = Decoded::from(&best);
+        println!("Decoded: {:?}", decoded);
         Ok(encoding.encode(&decoded, pad)?)
-    }
-
-    pub fn classify_and_convert_all(&self, input: &str) -> Result<Vec<(String, String)>, Error> {
-        let pad = Some(false);
-        let best = self.classify_best_match(input);
-        let mut encodings = Encoding::all();
-        if matches!(&best, Classification::Array(arr) if arr.is_lines()) {
-            encodings = encodings.into_iter().map(|e| e.to_lines()).collect();
-        }
-
-        let decoded = Decoded::from(&best);
-        let encodeds = encodings
-            .into_iter()
-            .flat_map(|encoding| {
-                encoding
-                    .encode(&decoded, pad)
-                    .map(|encoded| (format!("{}", encoding), encoded))
-            })
-            .collect();
-
-        Ok(encodeds)
     }
 
     pub fn flatten_array(&self, input: &str) -> Result<String, Error> {
@@ -147,7 +165,7 @@ impl Client {
 
     pub fn hash(&self, algorithm: &str, input: &str) -> Result<String, Error> {
         let best = self.classify_best_match(input);
-        let hash_encoding = Hasher::from(algorithm);
+        let hash_encoding = Hasher::try_from(algorithm)?;
         let encoded = if best.score() > 0 {
             let decoded = Decoded::from_be_bytes(input.as_bytes());
             let hash = hash_encoding.hash(&decoded)?;
@@ -192,6 +210,7 @@ mod tests {
         let expected = vec!["0x12345678900000"];
 
         for (test, expect) in test_set.iter().zip(expected.into_iter().cycle()) {
+            println!("Test: {}", test);
             let converted = client
                 .classify_and_convert("hex", test)
                 .expect("Failed to convert");
@@ -334,19 +353,5 @@ mod tests {
             hashed,
             "0x56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432"
         );
-    }
-
-    #[test]
-    fn test_encode_all() {
-        const TEST: &str = "0x1234";
-        let client = Client::new();
-        println!("Testing all encodings for: {}", TEST);
-        let encodeds = client
-            .classify_and_convert_all(TEST)
-            .expect("Failed to convert");
-        for (encoding, encoded) in encodeds.iter() {
-            println!("{}: {}", encoding, encoded);
-        }
-        assert_eq!(encodeds.len(), 4);
     }
 }

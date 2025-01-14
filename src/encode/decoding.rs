@@ -22,6 +22,33 @@ impl Default for Decoded {
     }
 }
 
+impl std::fmt::Display for Decoded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Decoded::Array(a) => {
+                write!(f, "[")?;
+                for (i, item) in a.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", item)?;
+                }
+                write!(f, "]")
+            }
+            Decoded::Bytes(b) => {
+                write!(f, "[")?;
+                for (i, byte) in b.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:02x}", byte)?;
+                }
+                write!(f, "]")
+            }
+        }
+    }
+}
+
 const BASE_64_ENGINE: engine::GeneralPurpose =
     engine::GeneralPurpose::new(&alphabet::STANDARD, general_purpose::NO_PAD);
 

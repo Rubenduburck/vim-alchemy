@@ -17,16 +17,11 @@ impl std::fmt::Display for BaseEncoding {
 }
 
 impl BaseEncoding {
-    const ALL_BASES: [i32; 6] = [2, 8, 10, 16, 58, 64];
     const BASE_64_ENGINE: base64::engine::general_purpose::GeneralPurpose =
         base64::engine::general_purpose::GeneralPurpose::new(
             &base64::alphabet::STANDARD,
             base64::engine::general_purpose::NO_PAD,
         );
-
-    pub fn all() -> Vec<Self> {
-        Self::ALL_BASES.iter().map(|&b| Self::new(b)).collect()
-    }
 
     pub fn new(base: i32) -> Self {
         Self { base }

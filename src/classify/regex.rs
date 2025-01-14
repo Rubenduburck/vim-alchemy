@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use regex::{Regex, RegexBuilder};
 
+use crate::encode::encoding::TextEncoding;
+
 pub struct RegexCache {
     match_cache: RegexMatch,
     extract_cache: RegexExtract,
@@ -82,6 +84,16 @@ impl RegexCache {
 
     pub fn extract_base<'a>(&'a self, base: i32) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
         Self::extract_longest(self.extract_cache.base(base))
+    }
+
+    pub fn match_text<'a>(&'a self, encoding: &TextEncoding) -> impl 'a + Fn(&'a str) -> usize {
+        match encoding {
+            TextEncoding::Utf(8) | TextEncoding::Ascii => {
+                |s: &'a str| s.chars().filter(|c| c.is_ascii()).count()
+            }
+            TextEncoding::Utf(16) => |s: &'a str| s.len(),
+            _ => |_: &'a str| 0,
+        }
     }
 
     pub fn match_array<'a>(&'a self) -> impl 'a + Fn(&'a str) -> usize {

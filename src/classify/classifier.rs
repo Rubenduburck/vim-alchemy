@@ -1,33 +1,77 @@
+use neovim_lib::Value;
+
 use crate::{
     classify::{
         regex::RegexCache,
         types::{Array, Classification},
     },
     encode::{
-        encoding::{ArrayEncoding, Encoding},
+        encoding::{ArrayEncoding, BaseEncoding, Encoding, TextEncoding},
         types::{Bracket, Brackets, Separator},
     },
 };
 
-use super::types::Integer;
+use super::types::{Integer, Text};
+
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Config {
+    pub available_encodings: Vec<Encoding>,
+}
+
+impl From<Value> for Config {
+    fn from(v: Value) -> Self {
+        if let Value::Map(map) = v {
+            let available_encodings = crate::get_array::<String>(&map, "available_encodings")
+                .unwrap_or_default()
+                .into_iter()
+                .map(|v| Encoding::from(v.as_str()))
+                .collect();
+            Self {
+                available_encodings,
+            }
+        } else {
+            Self::default()
+        }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            available_encodings: vec![
+                Encoding::Base(BaseEncoding::new(2)),
+                Encoding::Base(BaseEncoding::new(10)),
+                Encoding::Base(BaseEncoding::new(16)),
+                Encoding::Base(BaseEncoding::new(58)),
+                Encoding::Base(BaseEncoding::new(64)),
+            ],
+        }
+    }
+}
 
 pub struct Classifier {
+    cfg: Config,
     re: RegexCache,
 }
 
 impl Default for Classifier {
     fn default() -> Self {
-        Self::new()
+        Self::new(Config::default())
     }
 }
 
 // Classification
 impl Classifier {
     const PRECISION: usize = 1000;
-    pub fn new() -> Self {
+    pub fn new(cfg: Config) -> Self {
         Self {
             re: RegexCache::new(),
+            cfg,
         }
+    }
+
+    pub fn setup(&mut self, cfg: Config) {
+        self.cfg = cfg;
     }
 
     /// Extracts an array from a string Current approach is to iterate within the outer brackets
@@ -75,30 +119,41 @@ impl Classifier {
         }
     }
 
-    pub fn force_classify<'a>(
+    pub fn classify_with<'a>(
         &'a self,
         encoding: &Encoding,
         candidate: &'a str,
     ) -> Classification<'a> {
         match encoding {
-            Encoding::Base(enc) => self.classify_base(candidate, enc.base),
-            Encoding::Array(enc) => self.force_classify_array(enc, candidate),
+            Encoding::Base(enc) => self.classify_base_with(candidate, enc.base),
+            Encoding::Array(enc) => self.classify_array_with(enc, candidate),
+            Encoding::Text(enc) => self.classify_text_with(enc, candidate),
             _ => Classification::Empty,
         }
     }
 
-    pub fn classify<'a>(&'a self, candidate: &'a str) -> Vec<Classification<'a>> {
-        vec![
-            self.classify_base(candidate, 2),
-            self.classify_base(candidate, 10),
-            self.classify_base(candidate, 16),
-            self.classify_base(candidate, 58),
-            self.classify_base(candidate, 64),
-            self.classify_array(candidate),
-        ]
+    pub fn classify_text_with<'a>(
+        &'a self,
+        encoding: &TextEncoding,
+        candidate: &'a str,
+    ) -> Classification<'a> {
+        Classification::Text(Text::new(
+            *encoding,
+            candidate,
+            self.text_err(candidate, encoding),
+        ))
     }
 
-    pub fn classify_base<'a>(&'a self, candidate: &'a str, base: i32) -> Classification<'a> {
+    pub fn classify<'a>(&'a self, candidate: &'a str) -> Vec<Classification<'a>> {
+        self.cfg
+            .available_encodings
+            .iter()
+            .map(|enc| self.classify_with(enc, candidate))
+            .chain(std::iter::once(self.classify_array(candidate)))
+            .collect()
+    }
+
+    pub fn classify_base_with<'a>(&'a self, candidate: &'a str, base: i32) -> Classification<'a> {
         Classification::Integer(Integer::new(
             base,
             self.re.extract_base(base)(candidate).unwrap_or(""),
@@ -106,7 +161,7 @@ impl Classifier {
         ))
     }
 
-    pub fn force_classify_array<'a>(
+    pub fn classify_array_with<'a>(
         &'a self,
         encoding: &ArrayEncoding,
         candidate: &'a str,
@@ -120,7 +175,7 @@ impl Classifier {
             values
                 .iter()
                 .zip(encoding.values.iter())
-                .map(|(v, e)| vec![self.force_classify(e, v)])
+                .map(|(v, e)| vec![self.classify_with(e, v)])
                 .collect(),
             &encoding.brackets,
             encoding.separator,
@@ -174,6 +229,17 @@ impl Classifier {
             }
         }
     }
+
+    /// Returns the percentage of the string that does not match the text encoding
+    fn text_err(&self, candidate: &str, encoding: &TextEncoding) -> usize {
+        match candidate.len() {
+            0 => Self::PRECISION,
+            _ => {
+                Self::PRECISION
+                    - Self::PRECISION * self.re.match_text(encoding)(candidate) / candidate.len()
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -183,7 +249,7 @@ mod tests {
     #[test]
     fn test_extract_array() {
         const ARRAY_STRING: &str = "[1, 2, 3, 4]";
-        let cl = Classifier::new();
+        let cl = Classifier::default();
         let extracted = cl.extract_array(',', Some('['), Some(']'))(ARRAY_STRING);
         assert_eq!(extracted, vec!["1", "2", "3", "4"]);
 
@@ -203,7 +269,7 @@ mod tests {
     #[test]
     fn test_classify_base_2() {
         const BIN_VALUES: [&str; 3] = ["0b1010", "0b1111", "0b1001"];
-        let cl = Classifier::new();
+        let cl = Classifier::default();
         for candidate in BIN_VALUES.iter() {
             let c = cl.classify(candidate);
             match c.iter().min_by_key(|c| c.score()).unwrap() {
@@ -224,7 +290,7 @@ mod tests {
     #[test]
     fn test_classify_base_58() {
         const BS58_VALUES: [&str; 1] = ["3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"];
-        let cl = Classifier::new();
+        let cl = Classifier::default();
         for candidate in BS58_VALUES.iter() {
             let c = cl.classify(candidate);
             let best = c.iter().min_by_key(|c| c.score()).unwrap();
@@ -237,7 +303,7 @@ mod tests {
     fn test_classify_base_16() {
         const HEX_VALUES: [&str; 3] = ["0x1234", "0xabcd", "123f34"];
 
-        let cl = Classifier::new();
+        let cl = Classifier::default();
         for candidate in HEX_VALUES.iter() {
             let c = cl.classify(candidate);
             let best = c.iter().min_by_key(|c| c.score()).unwrap();
@@ -257,7 +323,7 @@ mod tests {
     #[test]
     fn test_classify_base_10() {
         const DEC_VALUES: [&str; 3] = ["123", "456", "0000768"];
-        let cl = Classifier::new();
+        let cl = Classifier::default();
         for candidate in DEC_VALUES.iter() {
             let c = cl.classify(candidate);
             let best = c.iter().min_by_key(|c| c.score()).unwrap();
@@ -277,7 +343,7 @@ mod tests {
     #[test]
     fn test_classify_base_64() {
         const BASE_64_VALUES: [&str; 3] = ["aGVsbG8=", "aGVsbG8", "aGVsbG8=="];
-        let cl = Classifier::new();
+        let cl = Classifier::default();
         for candidate in BASE_64_VALUES.iter() {
             let c = cl.classify(candidate);
             let best = c.iter().min_by_key(|c| c.score()).unwrap();
@@ -297,7 +363,7 @@ mod tests {
     #[test]
     fn test_classify_array() {
         const ARRAY_VALUES: [&str; 3] = ["[0x1, 2, 3,4,5]", "[1, 2, 4, 3, 4]", "[1, 2, 3, 4, 5]"];
-        let cl = Classifier::new();
+        let cl = Classifier::default();
         for candidate in ARRAY_VALUES.iter() {
             let c = cl.classify(candidate);
             let best = c.iter().min_by_key(|c| c.score()).unwrap();

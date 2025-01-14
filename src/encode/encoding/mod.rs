@@ -49,23 +49,6 @@ impl Encoding {
     const UTF: &'static str = "utf";
     const HEX: &'static str = "hex";
 
-    pub fn all() -> Vec<Self> {
-        let encodings = TextEncoding::all()
-            .into_iter()
-            .map(Encoding::Text)
-            .chain(BaseEncoding::all().into_iter().map(Encoding::Base))
-            .collect::<Vec<_>>();
-        encodings
-            .clone()
-            .into_iter()
-            .chain(
-                encodings
-                    .into_iter()
-                    .map(|e| Encoding::Array(vec![e].into())),
-            )
-            .collect()
-    }
-
     pub fn to_lines(&self) -> Encoding {
         Encoding::Array(ArrayEncoding::new(
             vec![self.clone()],

@@ -24,6 +24,17 @@ local function get_visual_selection()
 	}
 end
 
+local function replace_selection(bufnr, selection, text)
+	vim.api.nvim_buf_set_text(
+		bufnr,
+		selection.start_line,
+		selection.start_col,
+		selection.end_line,
+		selection.end_col,
+		{ text }
+	)
+end
+
 M.jobId = 0
 
 M.AlchClassifyAndConvert = "classify_and_convert"
@@ -44,7 +55,6 @@ M.AlchHash = "hash"
 -- TODO: what is the proper way to do this?
 M.dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
 M.bin = M.dir .. "../target/debug/vim-alchemy"
-print("bin: " .. M.bin)
 
 M.setup = function(opts)
 	M.configureCommands()
@@ -64,17 +74,17 @@ M.connect = function()
 end
 
 M.configureCommands = function()
-	vim.cmd('command! -range -nargs=+ AlchTest :lua require("alchemy").test({output_encoding = <f-args>})')
+	vim.cmd('command! -range -nargs=* AlchTest :lua require("alchemy").test(<f-args>)')
 
-	vim.cmd('command! -range -nargs=+ Alch :lua require("alchemy").classify_and_convert(<f-args>)')
+	vim.cmd('command! -range -nargs=* Alch :lua require("alchemy").classify_and_convert(<f-args>)')
 	vim.cmd('command! -range AlchFlatten :lua require("alchemy").flatten_array()')
-	vim.cmd('command! -range -nargs=+ AlchChunk :lua require("alchemy").chunk_array(<f-args>)')
+	vim.cmd('command! -range -nargs=* AlchChunk :lua require("alchemy").chunk_array(<f-args>)')
 	vim.cmd('command! -range -nargs=* AlchReverse :lua require("alchemy").reverse_array()')
-	vim.cmd('command! -range -nargs=+ AlchRotate :lua require("alchemy").rotate_array(<f-args>)')
-	vim.cmd('command! -range -nargs=+ AlchGenerate :lua require("alchemy").generate(<f-args>)')
-	vim.cmd('command! -range -nargs=+ AlchRandom :lua require("alchemy").random(<f-args>)')
-	vim.cmd('command! -range -nargs=+ AlchPadLeft :lua require("alchemy").pad_left(<f-args>)')
-	vim.cmd('command! -range -nargs=+ AlchPadRight :lua require("alchemy").pad_right(<f-args>)')
+	vim.cmd('command! -range -nargs=* AlchRotate :lua require("alchemy").rotate_array(<f-args>)')
+	vim.cmd('command! -range -nargs=* AlchGenerate :lua require("alchemy").generate(<f-args>)')
+	vim.cmd('command! -range -nargs=* AlchRandom :lua require("alchemy").random(<f-args>)')
+	vim.cmd('command! -range -nargs=* AlchPadLeft :lua require("alchemy").pad_left(<f-args>)')
+	vim.cmd('command! -range -nargs=* AlchPadRight :lua require("alchemy").pad_right(<f-args>)')
 	vim.cmd('command! -range -nargs=* AlchHash :lua require("alchemy").hash(<f-args>)')
 	vim.cmd('command! AlchStart :lua require("alchemy").start()')
 	vim.cmd('command! AlchStop :lua require("alchemy").stop()')
@@ -88,7 +98,6 @@ local function visual_replace_rpc(method, params)
 		params.selection = get_visual_selection()
 	end
 
-	print(vim.inspect(params))
 	local result = vim.rpcrequest(M.jobId, method, params)
 	if result then
 		local lines = vim.split(result, "\n", { plain = true })
@@ -141,9 +150,11 @@ end
 
 -- Define default options for commands
 M.defaults = {
+	classify = {
+		input_encoding = "select",
+	},
 	convert = {
-		input_encoding = "int",
-		output_encoding = "int",
+		output_encoding = "select",
 	},
 	generate = {
 		encoding = "int",
@@ -163,29 +174,25 @@ M.defaults = {
 		depth = 1,
 	},
 	pad = {
-		padding = " ",
+		padding = 1,
 	},
 }
 
 local function merge_opts(defaults, opts)
-	if defaults == nil then
-		return opts
+	if not defaults then
+		return opts or {}
 	end
-	opts = opts or {}
-	local result = {}
-	for k, v in pairs(defaults) do
-		result[k] = opts[k] or v
+	if not opts then
+		return vim.deepcopy(defaults)
 	end
-	return result
+	return vim.tbl_deep_extend("force", defaults, opts)
 end
 
 function M.test(opts)
-	print(vim.inspect(opts))
 	opts = merge_opts(M.defaults.test, opts)
 	opts.command = M.AlchTest
 	opts.selection = get_visual_selection()
 	opts.bufnr = vim.api.nvim_get_current_buf()
-	print(vim.inspect(opts))
 	local classifications = M.classify(opts)
 
 	-- Convert the classifications table into a list format for the selector
@@ -213,23 +220,119 @@ function M.test(opts)
 	}, function(choice)
 		if choice then
 			-- Do something with the selected classification
-			print(vim.inspect(choice.value.encoding))
 			opts.input_encoding = choice.value.encoding
 			M.convert(opts)
 		end
 	end)
 end
 
-function M.classify(opts)
-	return vim.rpcrequest(M.jobId, M.AlchClassify, opts)
+-- classify input_encoding = {"auto", "select"}
+function M.classify(args)
+	return vim.rpcrequest(M.jobId, M.AlchClassify, merge_opts(M.defaults.classify, opts))
 end
 
 function M.convert(opts)
-	visual_replace_rpc(M.AlchConvert, merge_opts(M.defaults.convert, opts))
+	return vim.rpcrequest(M.jobId, M.AlchConvert, merge_opts(M.defaults.convert, opts))
 end
 
 function M.classify_and_convert(opts)
-	visual_replace_rpc(M.AlchClassifyAndConvert, merge_opts(M.defaults.convert, opts))
+	print("classify_and_convert opts " .. vim.inspect(opts))
+	-- Get selected text
+	opts.selection = get_visual_selection()
+	opts.bufnr = vim.api.nvim_get_current_buf()
+
+	-- Classify
+	opts = merge_opts(M.defaults.classify, opts)
+	local classifications = M.classify(opts)
+	if not classifications then
+		return
+	end
+
+	print("classifications " .. vim.inspect(classifications))
+	print("opts " .. vim.inspect(opts))
+
+	-- Handle input encoding selection
+	local function process_conversion(input_encoding)
+		-- Convert
+		opts.input_encoding = input_encoding
+		if opts.output_encoding == "select" then
+			opts.output_encoding = { "int", "hex", "base64", "utf8", "utf16", "utf32", "ascii" }
+		end
+		local result = M.convert(opts)
+
+		if not result then
+			return
+		end
+		print("result " .. vim.inspect(result))
+
+		-- Handle the conversion result
+		local count = vim.tbl_count(result)
+
+		if count == 0 then
+			vim.notify("No results available to process.", vim.log.levels.WARN)
+			return
+		elseif count == 1 then
+			local key, value = next(result)
+			if value == nil then
+				vim.notify("Error: The single result has a nil value.", vim.log.levels.ERROR)
+				return
+			end
+			replace_selection(opts.bufnr, opts.selection, value)
+		else
+			local items = {}
+			for encoding, value in pairs(result) do
+				if encoding ~= nil and value ~= nil then
+					table.insert(items, {
+						text = string.format("(%s) %s", encoding, value),
+						value = value,
+					})
+				end
+			end
+
+			vim.ui.select(items, {
+				prompt = "Output",
+				format_item = function(item)
+					return item.text
+				end,
+			}, function(choice)
+				if choice then
+					replace_selection(opts.bufnr, opts.selection, choice.value)
+				else
+					vim.notify("Selection canceled by user.", vim.log.levels.INFO)
+				end
+			end)
+		end
+	end
+
+	-- Handle input encoding selection
+	if opts.input_encoding == "select" and #classifications > 1 then
+		-- Multiple classifications: show selection UI
+		local items = {}
+		for _, classification in ipairs(classifications) do
+			table.insert(items, {
+				text = string.format(
+					"(score %s) (%s) %s",
+					classification.score,
+					classification.encoding,
+					classification.value
+				),
+				value = classification,
+			})
+		end
+		vim.ui.select(items, {
+			prompt = "Input Encoding",
+			format_item = function(item)
+				return item.text
+			end,
+		}, function(choice)
+			if choice then
+				process_conversion(choice.value.encoding)
+			end
+		end)
+	else
+		-- Single classification or automatic selection
+		process_conversion(classifications[1].encoding)
+	end
 end
 
 function M.flatten_array(opts)

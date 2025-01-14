@@ -1,15 +1,10 @@
+use std::collections::HashMap;
+
 use neovim_lib::{RequestHandler, Value};
 
 use crate::client::Client;
 use crate::error::Error;
-
-fn get_param<T: TryFrom<Value>>(args: &[(Value, Value)], name: &str) -> Result<T, Error> {
-    args.iter()
-        .find(|(key, _)| key.as_str() == Some(name))
-        .map(|(_, value)| T::try_from(value.clone()))
-        .ok_or(Error::MissingArgs(name.to_string()))?
-        .map_err(|_| Error::InvalidArgs(name.to_string()))
-}
+use crate::{get_array, get_param};
 
 #[derive(Debug, Clone)]
 pub struct Selection {
@@ -47,8 +42,8 @@ pub enum Request {
         selection: Selection,
     },
     Convert {
-        input_encoding: String,
-        output_encoding: String,
+        input_encoding: Vec<String>,
+        output_encoding: Vec<String>,
         selection: Selection,
     },
     FlattenArray {
@@ -84,10 +79,11 @@ pub enum Request {
     },
     Stop,
     Hash {
-        algo: String,
+        algo: Vec<String>,
         selection: Selection,
     },
     Unknown(Vec<Value>),
+    Setup(crate::client::Config),
 }
 
 impl Request {
@@ -104,6 +100,7 @@ impl Request {
     const PAD_RIGHT: &'static str = "pad_right";
     const STOP: &'static str = "stop";
     const HASH: &'static str = "hash";
+    const SETUP: &'static str = "setup";
 }
 
 impl TryFrom<(&str, Vec<Value>)> for Request {
@@ -117,15 +114,15 @@ impl TryFrom<(&str, Vec<Value>)> for Request {
             .ok_or(Error::InvalidArgs("params".to_string()))?;
         match method {
             Self::CONVERT => Ok(Request::Convert {
-                input_encoding: get_param(params, "input_encoding")?,
-                output_encoding: get_param(params, "output_encoding")?,
+                input_encoding: get_array(params, "input_encoding")?,
+                output_encoding: get_array(params, "output_encoding")?,
                 selection: get_param(params, "selection")?,
             }),
             Self::CLASSIFY => Ok(Request::Classify {
                 selection: get_param(params, "selection")?,
             }),
             Self::CLASSIFY_AND_CONVERT => Ok(Request::ClassifyAndConvert {
-                output_encoding: get_param(params, "encoding")?,
+                output_encoding: get_param(params, "output_encoding")?,
                 selection: get_param(params, "selection")?,
             }),
             Self::FLATTEN_ARRAY => Ok(Request::FlattenArray {
@@ -161,9 +158,10 @@ impl TryFrom<(&str, Vec<Value>)> for Request {
             }),
             Self::STOP => Ok(Request::Stop),
             Self::HASH => Ok(Request::Hash {
-                algo: get_param(params, "algo")?,
+                algo: get_array(params, "algo")?,
                 selection: get_param(params, "selection")?,
             }),
+            Self::SETUP => Ok(Request::Setup(get_param(params, "config")?)),
             _ => Err(Error::UnknownRequest(method.to_string())),
         }
     }
@@ -171,6 +169,83 @@ impl TryFrom<(&str, Vec<Value>)> for Request {
 
 pub struct Handler {
     client: Client,
+}
+
+#[derive(Debug)]
+struct Conversions(HashMap<String, HashMap<String, Conversion>>);
+
+#[derive(Debug)]
+pub struct Conversion {
+    pub input: String,
+    pub output: String,
+}
+
+impl From<Conversion> for Value {
+    fn from(value: Conversion) -> Self {
+        Value::Map(
+            vec![
+                (Value::from("input"), Value::from(value.input)),
+                (Value::from("output"), Value::from(value.output)),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl From<Conversions> for Value {
+    fn from(value: Conversions) -> Self {
+        Value::Map(
+            value
+                .0
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        Value::from(k),
+                        Value::Map(
+                            v.into_iter()
+                                .map(|(k, v)| (Value::from(k), Value::from(v)))
+                                .collect::<Vec<(Value, Value)>>(),
+                        ),
+                    )
+                })
+                .collect::<Vec<(Value, Value)>>(),
+        )
+    }
+}
+
+#[derive(Debug)]
+struct Hashings(HashMap<String, Hashing>);
+
+#[derive(Debug)]
+pub struct Hashing {
+    pub input: String,
+    pub output: String,
+}
+
+impl From<Hashing> for Value {
+    fn from(value: Hashing) -> Self {
+        Value::Map(
+            vec![
+                (Value::from("input"), Value::from(value.input)),
+                (Value::from("output"), Value::from(value.output)),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl From<Hashings> for Value {
+    fn from(value: Hashings) -> Self {
+        Value::Map(
+            value
+                .0
+                .into_iter()
+                .map(|(k, v)| (Value::from(k), Value::from(v)))
+                .collect::<Vec<(Value, Value)>>(),
+        )
+    }
 }
 
 impl Handler {
@@ -197,17 +272,43 @@ impl Handler {
 
     /// Convert given classification
     /// E.g. convert "0x1234" "base64" -> "MTIzNA=="
+    /// Given an array of output_encodings, return a map of the results
     fn handle_convert(
         &mut self,
-        input_encoding: &str,
-        output_encoding: &str,
+        input_encoding: Vec<String>,
+        output_encoding: Vec<String>,
         input: &str,
-    ) -> Result<Value, Error> {
+    ) -> Result<Conversions, Error> {
         tracing::info!("Convert");
-        self.client
-            .convert(input_encoding, output_encoding, input)
-            .map(Value::from)
-            .map_err(Error::from)
+        tracing::debug!("input_encoding: {:?}", input_encoding);
+        tracing::debug!("output_encoding: {:?}", output_encoding);
+        let result = input_encoding
+            .iter()
+            .flat_map(|encoding| {
+                self.client
+                    .decode(encoding, input)
+                    .map(|decoded| {
+                        output_encoding
+                            .iter()
+                            .flat_map(|output_encoding| {
+                                self.client
+                                    .encode(output_encoding, &decoded)
+                                    .map(|encoded| {
+                                        (
+                                            output_encoding.clone(),
+                                            Conversion {
+                                                input: decoded.to_string(),
+                                                output: encoded,
+                                            },
+                                        )
+                                    })
+                            })
+                            .collect::<HashMap<String, Conversion>>()
+                    })
+                    .map(|results| (encoding.clone(), results))
+            })
+            .collect::<HashMap<String, HashMap<String, Conversion>>>();
+        Ok(Conversions(result))
     }
 
     /// Classify the given input
@@ -309,14 +410,21 @@ impl Handler {
     /// Hash the given input
     /// If the input is classified as some type, hash the bytes
     /// otherwise, hash as utf8
-    fn handle_hash(&mut self, algo: &str, input: &str) -> Result<Value, Error> {
+    fn handle_hash(&mut self, algo: Vec<String>, input: &str) -> Result<Value, Error> {
         tracing::info!("Hash");
-        tracing::debug!("algo: {}", algo);
+        tracing::debug!("algo: {:?}", algo);
         tracing::debug!("input: {}", input);
-        self.client
-            .hash(algo, input)
+        Ok(algo
+            .into_iter()
+            .flat_map(|a| {
+                self.client.hash(&a, input).map(|h| Hashing {
+                    input: input.to_string(),
+                    output: h,
+                })
+            })
             .map(Value::from)
-            .map_err(Error::from)
+            .collect::<Vec<Value>>()
+            .into())
     }
 }
 
@@ -334,10 +442,12 @@ impl RequestHandler for Handler {
         let result = match request {
             Request::Classify { selection } => self.handle_classify(&selection.text),
             Request::Convert {
-                ref input_encoding,
-                ref output_encoding,
+                input_encoding,
+                output_encoding,
                 selection,
-            } => self.handle_convert(input_encoding, output_encoding, &selection.text),
+            } => self
+                .handle_convert(input_encoding, output_encoding, &selection.text)
+                .map(Value::from),
             Request::ClassifyAndConvert {
                 ref output_encoding,
                 selection,
@@ -372,12 +482,14 @@ impl RequestHandler for Handler {
                 tracing::info!("Stopping");
                 std::process::exit(0);
             }
-            Request::Hash {
-                ref algo,
-                selection,
-            } => self.handle_hash(algo, &selection.text),
+            Request::Hash { algo, selection } => self.handle_hash(algo, &selection.text),
             Request::Unknown(values) => {
                 Err(Error::UnknownRequest(format!("{}, {:?}", name, values)))
+            }
+            Request::Setup(config) => {
+                tracing::info!("Setting up client");
+                self.client.setup(config);
+                Ok(Value::Nil)
             }
         };
         tracing::debug!("Result: {:?}", result);

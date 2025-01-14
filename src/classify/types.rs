@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use neovim_lib::Value;
 
 use crate::encode::{
-    encoding::{ArrayEncoding, BaseEncoding, Encoding},
+    encoding::{ArrayEncoding, BaseEncoding, Encoding, TextEncoding},
     types::{Brackets, Separator},
 };
 
@@ -11,6 +11,7 @@ use crate::encode::{
 pub enum Classification<'a> {
     Array(Array<'a>),
     Integer(Integer<'a>),
+    Text(Text<'a>),
     #[default]
     Empty,
 }
@@ -20,6 +21,7 @@ impl Display for Classification<'_> {
         match self {
             Classification::Array(arr) => arr.fmt(f),
             Classification::Integer(int) => int.fmt(f),
+            Classification::Text(text) => write!(f, "{}", text),
             Classification::Empty => write!(f, "Empty"),
         }
     }
@@ -89,6 +91,7 @@ impl Classification<'_> {
                 Some(v.separator),
             )),
             Classification::Integer(i) => Encoding::Base(BaseEncoding::new(i.base)),
+            Classification::Text(t) => Encoding::Text(t.encoding),
             Classification::Empty => Encoding::Empty,
         }
     }
@@ -104,6 +107,7 @@ impl Classification<'_> {
         match self {
             Classification::Array(arr) => arr.score,
             Classification::Integer(int) => int.score,
+            Classification::Text(text) => text.score,
             Classification::Empty => usize::MAX,
         }
     }
@@ -112,6 +116,7 @@ impl Classification<'_> {
         match self {
             Classification::Array(arr) => arr.value_string(),
             Classification::Integer(int) => int.value_string(),
+            Classification::Text(text) => text.value_string(),
             Classification::Empty => String::new(),
         }
     }
@@ -120,6 +125,7 @@ impl Classification<'_> {
         match self {
             Classification::Empty => true,
             Classification::Array(arr) => arr.values().is_empty(),
+            Classification::Text(text) => text.value.is_empty(),
             Classification::Integer(int) => int.value.is_empty(),
         }
     }
@@ -229,6 +235,33 @@ impl<'a> Integer<'a> {
     pub fn new(base: i32, value: &'a str, err: usize) -> Self {
         Self {
             base,
+            value,
+            score: err,
+        }
+    }
+
+    pub fn value_string(&self) -> String {
+        self.value.to_string()
+    }
+}
+
+#[derive(Debug)]
+pub struct Text<'a> {
+    pub encoding: TextEncoding,
+    pub value: &'a str,
+    pub score: usize,
+}
+
+impl Display for Text<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{{}, {}, {}}}", self.encoding, self.value, self.score)
+    }
+}
+
+impl<'a> Text<'a> {
+    pub fn new(encoding: TextEncoding, value: &'a str, err: usize) -> Self {
+        Self {
+            encoding,
             value,
             score: err,
         }

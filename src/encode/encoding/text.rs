@@ -1,6 +1,6 @@
 use super::{super::decoding::Decoded, super::error::Error};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum TextEncoding {
     Utf(u8),
     Ascii,
@@ -16,9 +16,6 @@ impl std::fmt::Display for TextEncoding {
 }
 
 impl TextEncoding {
-    pub fn all() -> Vec<Self> {
-        vec![Self::Utf(8), Self::Utf(16), Self::Ascii]
-    }
     pub fn encode(&self, v: &Decoded) -> Result<String, Error> {
         match self {
             TextEncoding::Utf(8) | TextEncoding::Ascii => {
@@ -42,5 +39,31 @@ impl TextEncoding {
             }
             _ => Err(Error::UnsupportedEncoding),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encode_ascii() {
+        let text_encoding = TextEncoding::Ascii;
+        let decoded = Decoded::Bytes(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+        assert_eq!(text_encoding.encode(&decoded).unwrap(), "Hello");
+    }
+
+    #[test]
+    fn test_encode_utf8() {
+        let text_encoding = TextEncoding::Utf(8);
+        let decoded = Decoded::Bytes(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+        assert_eq!(text_encoding.encode(&decoded).unwrap(), "Hello");
+    }
+
+    #[test]
+    fn test_encode_utf16() {
+        let text_encoding = TextEncoding::Utf(16);
+        let decoded = Decoded::Bytes(vec![0x48, 0x00, 0x65, 0x00, 0x6c, 0x00, 0x6c, 0x00, 0x6f, 0x00]);
+        assert_eq!(text_encoding.encode(&decoded).unwrap(), "Hello");
     }
 }

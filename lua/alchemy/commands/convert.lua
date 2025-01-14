@@ -1,0 +1,52 @@
+local Config = require("alchemy.config")
+local Utils = require("alchemy.utils")
+local Rpc = require("alchemy.rpc")
+local Ui = require("alchemy.ui")
+local Commands = require("alchemy.commands")
+
+local function convert(args, opts)
+	local params = vim.deepcopy(Config.options.commands.convert)
+
+	-- Get selection
+	params.selection = Utils.get_visual_selection()
+	params.bufnr = vim.api.nvim_get_current_buf()
+
+	-- Parse arguments
+	if #args > 0 then
+		params.input_encoding = args[1]
+	end
+	if #args > 1 then
+		params.output_encoding = args[2]
+	end
+
+	-- Get input encoding and continue with conversion after we have it
+	Commands.get_input_encoding(params, function(input_encoding)
+		vim.notify("input_encoding: " .. input_encoding)
+		params.input_encoding = input_encoding
+
+		-- Convert
+		if params.output_encoding == "select" then
+			params.output_encoding = Config.options.encodings
+		end
+		local result = Rpc.convert(params)
+
+		if not result then
+			print("no result")
+			return
+		end
+		result = Utils.collapse_on_key(result, "output")
+
+		if type(result) == "string" then
+			-- If result is a string, replace selection with it
+			Utils.replace_selection(params.bufnr, params.selection, result)
+			return
+		else
+			-- If result is a table, show a nested select
+			Ui.nested_select(result, function(value)
+				-- Replace selection with selected value
+				Utils.replace_selection(params.bufnr, params.selection, value)
+			end)
+		end
+	end)
+end
+return convert
