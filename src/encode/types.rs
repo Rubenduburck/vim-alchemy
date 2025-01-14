@@ -1,16 +1,10 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Hash, Clone)]
+#[derive(Default, Debug, Hash, Clone)]
 pub struct Brackets {
     open: Option<Bracket>,
     close: Option<Bracket>,
-}
-
-impl Default for Brackets {
-    fn default() -> Self {
-        Brackets::new(Some(Bracket::default()), Some(Bracket::default()))
-    }
 }
 
 impl Brackets {

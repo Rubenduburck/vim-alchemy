@@ -468,24 +468,23 @@ mod tests {
         println!("{:?}", result);
     }
 
-    // FIXME: this test is broken
-    //#[test]
-    //fn test_encode_array_newline() {
-    //    let test_input = Decoded::Array(vec![
-    //        Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
-    //        Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
-    //    ]);
-    //    let result = Encoding::Array(ArrayEncoding::new(
-    //        vec![
-    //            Encoding::Base(BaseEncoding::new(16)),
-    //            Encoding::Base(BaseEncoding::new(10)),
-    //        ],
-    //        None,
-    //        Some(Separator::from('\n')),
-    //    ))
-    //    .encode(&test_input, Some(false));
-    //    assert_eq!(result.unwrap(), "0x1234567890\n78187493520");
-    //}
+    #[test]
+    fn test_encode_array_newline() {
+        let test_input = Decoded::Array(vec![
+            Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
+            Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
+        ]);
+        let result = Encoding::Array(ArrayEncoding::new(
+            vec![
+                Encoding::Base(BaseEncoding::new(16)),
+                Encoding::Base(BaseEncoding::new(10)),
+            ],
+            None,
+            Some(Separator::from('\n')),
+        ))
+        .encode(&test_input, Some(false));
+        assert_eq!(result.unwrap(), "0x1234567890\n78187493520");
+    }
 
     #[test]
     fn test_encode_array_round_brackets() {

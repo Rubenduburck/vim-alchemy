@@ -255,8 +255,12 @@ mod tests {
         assert_eq!(cl.base_n_err(INPUT, 10), 167);
 
         const ARR_INPUT: &str = "[[123]]";
-        assert_eq!(cl.array_err(ARR_INPUT, &Brackets::default()), 0);
+        assert_eq!(cl.array_err(ARR_INPUT, &Brackets::from('[')), 0);
         assert_eq!(cl.text_err(INPUT, &TextEncoding::Utf(8)), 0);
+
+        const TEXT_INPUT: &str = "myFunction()";
+        assert_eq!(cl.text_err(TEXT_INPUT, &TextEncoding::Utf(8)), 0);
+        assert_eq!(cl.array_err(TEXT_INPUT, &Brackets::default()), 1000);
     }
 
     #[test]
