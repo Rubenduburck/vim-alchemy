@@ -308,7 +308,7 @@ mod tests {
         assert_eq!(result, std::cmp::Ordering::Less);
     }
 
-    // TODO: 
+    // TODO:
     //#[test]
     //fn test_flatten() {
     //    let arr_inner_1 = Array::new(

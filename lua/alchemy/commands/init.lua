@@ -39,16 +39,16 @@ function M.get_input_encoding(params, callback)
 end
 
 local alchemy_command_tbl = {
-    classify_and_convert = {
-        impl = function(args, opts)
-            require("alchemy.commands.convert").classify_and_convert(args, opts)
-        end,
-    },
-    classify_and_hash = {
-        impl = function(args, opts)
-            require("alchemy.commands.hash").classify_and_hash(args, opts)
-        end,
-    },
+	classify_and_convert = {
+		impl = function(args, opts)
+			require("alchemy.commands.convert").classify_and_convert(args, opts)
+		end,
+	},
+	classify_and_hash = {
+		impl = function(args, opts)
+			require("alchemy.commands.hash").classify_and_hash(args, opts)
+		end,
+	},
 	convert = {
 		impl = function(args, opts)
 			require("alchemy.commands.convert").convert(args, opts)
@@ -212,7 +212,6 @@ function M.classify_and_convert(opts)
 	if not classifications then
 		return
 	end
-
 
 	-- Handle input encoding selection
 	local function process_conversion(input_encoding)

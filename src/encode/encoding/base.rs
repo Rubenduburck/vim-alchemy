@@ -1,7 +1,4 @@
-use super::{
-    super::decoding::Decoded,
-    super::error::Error,
-};
+use super::{super::decoding::Decoded, super::error::Error};
 use base64::Engine;
 use rug::Integer;
 

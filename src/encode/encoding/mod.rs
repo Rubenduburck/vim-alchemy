@@ -221,7 +221,6 @@ mod tests {
         let left = Encoding::Text(TextEncoding::Utf(8));
         let right = Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16))].into());
         assert_eq!(left.cmp(&right), std::cmp::Ordering::Greater);
-
     }
 
     #[test]

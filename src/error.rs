@@ -23,7 +23,6 @@ pub enum Error {
 
     #[error("Invalid args {0}")]
     InvalidArgs(String),
-
 }
 
 impl From<Error> for neovim_lib::Value {

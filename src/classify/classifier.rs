@@ -44,7 +44,6 @@ impl Default for Config {
                 Encoding::Base(BaseEncoding::new(16)),
                 Encoding::Base(BaseEncoding::new(58)),
                 Encoding::Base(BaseEncoding::new(64)),
-
                 Encoding::Text(TextEncoding::Utf(8)),
             ],
         }

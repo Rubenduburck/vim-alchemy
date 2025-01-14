@@ -28,4 +28,3 @@ fn get_array<T: TryFrom<Value>>(args: &[(Value, Value)], name: &str) -> Result<V
         .ok_or(Error::MissingArgs(name.to_string()))
         .map_err(|_| Error::InvalidArgs(name.to_string()))
 }
-
