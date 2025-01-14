@@ -63,6 +63,7 @@ function M.classify_and_hash(args, opts)
 	end
 
 	local result = Rpc.classify_and_hash(params)
+    result = Utils.collapse_on_key(result, "output")
 
 	if not result then
 		vim.notify("No result found")
