@@ -18,7 +18,7 @@ function M.get_input_encoding(params, callback)
 
 	-- Get classifications from RPC
 	local classifications = Rpc.classify(params)
-    print("classifications: " .. vim.inspect(classifications))
+	print("classifications: " .. vim.inspect(classifications))
 	if not classifications then
 		callback(nil)
 		return
@@ -41,14 +41,24 @@ function M.get_input_encoding(params, callback)
 end
 
 local alchemy_command_tbl = {
+    classify_and_convert = {
+        impl = function(args, opts)
+            require("alchemy.commands.convert").classify_and_convert(args, opts)
+        end,
+    },
+    classify_and_hash = {
+        impl = function(args, opts)
+            require("alchemy.commands.hash").classify_and_hash(args, opts)
+        end,
+    },
 	convert = {
 		impl = function(args, opts)
-			require("alchemy.commands.convert")(args, opts)
+			require("alchemy.commands.convert").convert(args, opts)
 		end,
 	},
 	hash = {
 		impl = function(args, opts)
-			require("alchemy.commands.hash")(args, opts)
+			require("alchemy.commands.hash").hash(args, opts)
 		end,
 	},
 	random = {
@@ -61,31 +71,36 @@ local alchemy_command_tbl = {
 			require("alchemy.commands.new")(args, opts)
 		end,
 	},
-	-- pad = {
-	--     impl = function(args, opts)
-	--         require("alchemy.commands.pad")(args, opts)
-	--     end,
-	-- },
-	-- rotate = {
-	--     impl = function(args, opts)
-	--         require("alchemy.commands.rotate")(args, opts)
-	--     end,
-	-- },
-	-- reverse = {
-	--     impl = function(args, opts)
-	--         require("alchemy.commands.reverse")(args, opts)
-	--     end,
-	-- },
-	-- chunk = {
-	--     impl = function(args, opts)
-	--         require("alchemy.commands.chunk")(args, opts)
-	--     end,
-	-- },
-	-- flatten = {
-	--     impl = function(args, opts)
-	--         require("alchemy.commands.flatten")(args, opts)
-	--     end,
-	-- },
+	pad_left = {
+		impl = function(args, opts)
+			require("alchemy.commands.pad").pad_left(args, opts)
+		end,
+	},
+	pad_right = {
+		impl = function(args, opts)
+			require("alchemy.commands.pad").pad_right(args, opts)
+		end,
+	},
+	rotate = {
+		impl = function(args, opts)
+			require("alchemy.commands.rotate")(args, opts)
+		end,
+	},
+	reverse = {
+		impl = function(args, opts)
+			require("alchemy.commands.reverse")(args, opts)
+		end,
+	},
+	chunk = {
+		impl = function(args, opts)
+			require("alchemy.commands.chunk")(args, opts)
+		end,
+	},
+	flatten = {
+		impl = function(args, opts)
+			require("alchemy.commands.flatten")(args, opts)
+		end,
+	},
 }
 
 local function run_command(opts)

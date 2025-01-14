@@ -105,6 +105,7 @@ impl<'a> From<&Text<'a>> for Decoded {
 
 impl<'a> From<&Classification<'a>> for Decoded {
     fn from(classification: &Classification<'a>) -> Self {
+        tracing::debug!("Decoding classification: {:?}", classification);
         match classification {
             Classification::Array(a) => Decoded::from(a),
             Classification::Integer(i) => Decoded::try_from(i).unwrap_or_default(),

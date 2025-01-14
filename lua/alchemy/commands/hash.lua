@@ -4,7 +4,9 @@ local Rpc = require("alchemy.rpc")
 local Ui = require("alchemy.ui")
 local Commands = require("alchemy.commands")
 
-local function hash(args, opts)
+local M = {}
+
+function M.hash(args, opts)
 	local params = vim.deepcopy(Config.options.commands.hash)
 
 	-- Get selection
@@ -49,4 +51,38 @@ local function hash(args, opts)
 	end)
 end
 
-return hash
+function M.classify_and_hash(args, opts)
+	local params = vim.deepcopy(Config.options.commands.hash)
+	print("params: " .. vim.inspect(params))
+
+	-- Get selection
+	params.selection = Utils.get_visual_selection()
+	params.bufnr = vim.api.nvim_get_current_buf()
+
+	-- Parse arguments
+	if #args > 0 then
+		params.algo = args[1]
+	end
+
+	if not params.algo or params.algo == "select" then
+		params.algo = Config.options.hashers
+	end
+
+	local result = Rpc.classify_and_hash(params)
+
+	if not result then
+		vim.notify("No result found")
+		return
+	elseif type(result) == "string" then
+		-- If result is a string, replace selection with it
+		Utils.replace_selection(params.bufnr, params.selection, result)
+		return
+	else
+		Ui.nested_select(result, function(value)
+			-- Replace selection with selected value
+			Utils.replace_selection(params.bufnr, params.selection, value)
+		end)
+	end
+end
+
+return M

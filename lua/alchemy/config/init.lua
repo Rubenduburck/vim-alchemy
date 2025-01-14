@@ -20,8 +20,8 @@ function M.defaults()
 		encodings = {
 			"int",
 			"hex",
+            "base58",
 			"base64",
-			"bytes",
 			"utf8",
 			"utf16",
 			"ascii",
@@ -49,13 +49,13 @@ function M.defaults()
 				count = "int",
 			},
 			rotate = {
-				count = 1,
+				rotation = 1,
 			},
 			reverse = {
 				depth = 1,
 			},
 			pad = {
-				padding = 1,
+				padding = 32,
 			},
 		},
 	}

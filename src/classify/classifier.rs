@@ -44,6 +44,8 @@ impl Default for Config {
                 Encoding::Base(BaseEncoding::new(16)),
                 Encoding::Base(BaseEncoding::new(58)),
                 Encoding::Base(BaseEncoding::new(64)),
+
+                Encoding::Text(TextEncoding::Utf(8)),
             ],
         }
     }
@@ -74,7 +76,8 @@ impl Classifier {
         self.cfg = cfg;
     }
 
-    /// Extracts an array from a string Current approach is to iterate within the outer brackets
+    /// Extracts an array from a string
+    /// Current approach is to iterate within the outer brackets
     /// and count the depth of the brackets. If we see a separator at depth 0, we split the string
     /// at that index.
     pub fn extract_array<'a>(
@@ -208,24 +211,24 @@ impl Classifier {
     }
 
     fn array_err(&self, candidate: &str, brackets: &Brackets) -> usize {
-        match (
+        let between_brackets_count = match (
             brackets.open().and_then(|o| candidate.find(o)),
             brackets.close().and_then(|c| candidate.rfind(c)),
         ) {
-            (Some(start), Some(end)) => end.saturating_sub(start),
+            (Some(start), Some(end)) => end.saturating_sub(start) + 1,
             (Some(start), None) => candidate.len() - start,
             (None, Some(end)) => end,
             _ => 0,
-        }
+        };
+        Self::PRECISION - Self::PRECISION * between_brackets_count / candidate.len()
     }
 
     /// Returns the percentage of the string that does not match the base
     fn base_n_err(&self, candidate: &str, base: i32) -> usize {
         match candidate.len() {
             0 => Self::PRECISION,
-            _ => {
-                Self::PRECISION
-                    - Self::PRECISION * self.re.match_base(base)(candidate) / candidate.len()
+            length => {
+                Self::PRECISION - Self::PRECISION * self.re.match_base(base)(candidate) / length
             }
         }
     }
@@ -234,9 +237,8 @@ impl Classifier {
     fn text_err(&self, candidate: &str, encoding: &TextEncoding) -> usize {
         match candidate.len() {
             0 => Self::PRECISION,
-            _ => {
-                Self::PRECISION
-                    - Self::PRECISION * self.re.match_text(encoding)(candidate) / candidate.len()
+            length => {
+                Self::PRECISION - Self::PRECISION * self.re.match_text(encoding)(candidate) / length
             }
         }
     }
@@ -245,6 +247,18 @@ impl Classifier {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_err() {
+        const INPUT: &str = "0x1234";
+        let cl = Classifier::default();
+        assert_eq!(cl.base_n_err(INPUT, 16), 0);
+        assert_eq!(cl.base_n_err(INPUT, 10), 167);
+
+        const ARR_INPUT: &str = "[[123]]";
+        assert_eq!(cl.array_err(ARR_INPUT, &Brackets::default()), 0);
+        assert_eq!(cl.text_err(INPUT, &TextEncoding::Utf(8)), 0);
+    }
 
     #[test]
     fn test_extract_array() {
@@ -362,14 +376,20 @@ mod tests {
 
     #[test]
     fn test_classify_array() {
-        const ARRAY_VALUES: [&str; 3] = ["[0x1, 2, 3,4,5]", "[1, 2, 4, 3, 4]", "[1, 2, 3, 4, 5]"];
+        const ARRAY_VALUES: [&str; 4] = [
+            "[0x1, 2, 3,4,5]",
+            "[1, 2, 4, 3, 4]",
+            "[1, 2, 3, 4, 5]",
+            "[[123]]",
+        ];
+        const EXPECTED: [usize; 4] = [5, 5, 5, 1];
         let cl = Classifier::default();
-        for candidate in ARRAY_VALUES.iter() {
+        for (candidate, expected) in ARRAY_VALUES.iter().zip(EXPECTED.iter()) {
             let c = cl.classify(candidate);
             let best = c.iter().min_by_key(|c| c.score()).unwrap();
             match best {
                 Classification::Array(a) => {
-                    assert_eq!(a.collapse().len(), 5);
+                    assert_eq!(a.collapse().len(), *expected);
                 }
                 _ => panic!("expected array"),
             }

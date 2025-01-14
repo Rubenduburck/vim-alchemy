@@ -4,7 +4,9 @@ local Rpc = require("alchemy.rpc")
 local Ui = require("alchemy.ui")
 local Commands = require("alchemy.commands")
 
-local function convert(args, opts)
+local M = {}
+
+function M.convert(args, opts)
 	local params = vim.deepcopy(Config.options.commands.convert)
 
 	-- Get selection
@@ -48,4 +50,34 @@ local function convert(args, opts)
 		end
 	end)
 end
-return convert
+
+function M.classify_and_convert(args, opts)
+	local params = vim.deepcopy(Config.options.commands.convert)
+
+	-- Get selection
+	params.selection = Utils.get_visual_selection()
+	params.bufnr = vim.api.nvim_get_current_buf()
+
+	-- Parse arguments
+	if #args > 0 then
+		params.output_encoding = args[1]
+	end
+
+	local result = Rpc.classify_and_convert(params)
+	if not result then
+		vim.notify("No result found")
+		return
+	elseif type(result) == "string" then
+		-- If result is a string, replace selection with it
+		Utils.replace_selection(params.bufnr, params.selection, result)
+		return
+	else
+		-- NOTE: should never get here
+		Ui.nested_select(result, function(value)
+			-- Replace selection with selected value
+			Utils.replace_selection(params.bufnr, params.selection, value)
+		end)
+	end
+end
+
+return M

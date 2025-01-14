@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use vim_alchemy::client::Client;
+use vim_alchemy::{client::Client, encode::encoding::Encoding};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let client = Client::new();
@@ -14,37 +14,43 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("classify_and_convert_int", |b| {
         b.iter(|| {
-            let _ = black_box(client.classify_and_convert("int", TEST_INT));
+            let encoding = vec![Encoding::from("int")];
+            let _ = black_box(client.classify_and_convert(encoding, TEST_INT));
         })
     });
 
     c.bench_function("classify_and_convert_hex", |b| {
         b.iter(|| {
-            let _ = black_box(client.classify_and_convert("hex", TEST_HEX));
+            let encoding = vec![Encoding::from("hex")];
+            let _ = black_box(client.classify_and_convert(encoding, TEST_HEX));
         })
     });
 
     c.bench_function("classify_and_convert_base64", |b| {
         b.iter(|| {
-            let _ = black_box(client.classify_and_convert("base64", TEST_BASE64));
+            let encoding = vec![Encoding::from("base64")];
+            let _ = black_box(client.classify_and_convert(encoding, TEST_BASE64));
         })
     });
 
     c.bench_function("classify_and_convert_very_large_int_to_hex", |b| {
         b.iter(|| {
-            let _ = black_box(client.classify_and_convert("hex", TEST_VERY_LARGE_INT));
+            let encoding = vec![Encoding::from("hex")];
+            let _ = black_box(client.classify_and_convert(encoding, TEST_VERY_LARGE_INT));
         })
     });
 
     c.bench_function("classify_and_convert_very_large_hex_to_int", |b| {
         b.iter(|| {
-            let _ = black_box(client.classify_and_convert("int", TEST_VERY_LARGE_HEX));
+            let encoding = vec![Encoding::from("int")];
+            let _ = black_box(client.classify_and_convert(encoding, TEST_VERY_LARGE_HEX));
         })
     });
 
     c.bench_function("classify_and_convert_bytes", |b| {
         b.iter(|| {
-            let _ = black_box(client.classify_and_convert("bytes", TEST_BYTES));
+            let encoding = vec![Encoding::from("bytes")];
+            let _ = black_box(client.classify_and_convert(encoding, TEST_BYTES));
         })
     });
 }

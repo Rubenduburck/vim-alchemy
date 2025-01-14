@@ -17,6 +17,7 @@ M.AlchPadLeft = "pad_left"
 M.AlchPadRight = "pad_right"
 M.AlchStart = "start"
 M.AlchStop = "stop"
+M.AlchClassifyAndHash = "classify_and_hash"
 M.AlchHash = "hash"
 M.AlchSetup = "setup"
 
@@ -62,6 +63,10 @@ end
 
 function M.pad_right(opts)
 	return vim.rpcrequest(M.jobId, M.AlchPadRight, opts)
+end
+
+function M.classify_and_hash(opts)
+    return vim.rpcrequest(M.jobId, M.AlchClassifyAndHash, opts)
 end
 
 function M.hash(opts)

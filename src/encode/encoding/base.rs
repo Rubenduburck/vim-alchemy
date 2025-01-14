@@ -23,7 +23,7 @@ impl BaseEncoding {
             base64::engine::general_purpose::NO_PAD,
         );
 
-    pub fn new(base: i32) -> Self {
+    pub const fn new(base: i32) -> Self {
         Self { base }
     }
 

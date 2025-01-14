@@ -69,6 +69,13 @@ impl Default for Hasher {
     }
 }
 
+impl TryFrom<&String> for Hasher {
+    type Error = Error;
+    fn try_from(s: &String) -> Result<Self, Error> {
+        Hasher::try_from(s.as_str())
+    }
+}
+
 impl TryFrom<&str> for Hasher {
     type Error = Error;
     fn try_from(s: &str) -> Result<Self, Error> {

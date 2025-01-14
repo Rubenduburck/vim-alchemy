@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use neovim_lib::{RequestHandler, Value};
 
 use crate::client::Client;
+use crate::encode::encoding::Encoding;
 use crate::error::Error;
 use crate::{get_array, get_param};
 
@@ -35,7 +36,7 @@ impl TryFrom<Value> for Selection {
 #[derive(Debug)]
 pub enum Request {
     ClassifyAndConvert {
-        output_encoding: String,
+        output_encoding: Vec<String>,
         selection: Selection,
     },
     Classify {
@@ -83,6 +84,10 @@ pub enum Request {
         selection: Selection,
         input_encoding: Vec<String>,
     },
+    ClassifyAndHash {
+        algo: Vec<String>,
+        selection: Selection,
+    },
     Unknown(Vec<Value>),
     Setup(crate::client::Config),
 }
@@ -101,6 +106,7 @@ impl Request {
     const PAD_RIGHT: &'static str = "pad_right";
     const STOP: &'static str = "stop";
     const HASH: &'static str = "hash";
+    const CLASSIFY_AND_HASH: &'static str = "classify_and_hash";
     const SETUP: &'static str = "setup";
 }
 
@@ -123,7 +129,7 @@ impl TryFrom<(&str, Vec<Value>)> for Request {
                 selection: get_param(params, "selection")?,
             }),
             Self::CLASSIFY_AND_CONVERT => Ok(Request::ClassifyAndConvert {
-                output_encoding: get_param(params, "output_encoding")?,
+                output_encoding: get_array(params, "output_encoding")?,
                 selection: get_param(params, "selection")?,
             }),
             Self::FLATTEN_ARRAY => Ok(Request::FlattenArray {
@@ -162,6 +168,10 @@ impl TryFrom<(&str, Vec<Value>)> for Request {
                 algo: get_array(params, "algo")?,
                 selection: get_param(params, "selection")?,
                 input_encoding: get_array(params, "input_encoding")?,
+            }),
+            Self::CLASSIFY_AND_HASH => Ok(Request::ClassifyAndHash {
+                algo: get_array(params, "algo")?,
+                selection: get_param(params, "selection")?,
             }),
             Self::SETUP => Ok(Request::Setup(get_param(params, "config")?)),
             _ => Err(Error::UnknownRequest(method.to_string())),
@@ -293,13 +303,13 @@ impl Handler {
             .iter()
             .flat_map(|encoding| {
                 self.client
-                    .decode(encoding, input)
+                    .decode(&Encoding::from(encoding), input)
                     .map(|decoded| {
                         output_encoding
                             .iter()
                             .flat_map(|output_encoding| {
                                 self.client
-                                    .encode(output_encoding, &decoded)
+                                    .encode(&Encoding::from(output_encoding), &decoded)
                                     .map(|encoded| {
                                         (
                                             output_encoding.clone(),
@@ -321,11 +331,23 @@ impl Handler {
     /// Classify the given input
     /// Then convert the input to the provided encoding
     /// E.g. classify_and_convert "0x1234" "bytes" -> "[0x12, 0x34]"
-    fn handle_classify_and_convert(&mut self, encoding: &str, input: &str) -> Result<Value, Error> {
+    fn handle_classify_and_convert(
+        &mut self,
+        output_encoding: Vec<String>,
+        input: &str,
+    ) -> Result<Value, Error> {
         tracing::info!("Classify and convert");
+        let input_encoding = output_encoding.iter().map(Encoding::from).collect();
         self.client
-            .classify_and_convert(encoding, input)
-            .map(Value::from)
+            .classify_and_convert(input_encoding, input)
+            .map(|output| {
+                Value::Map(
+                    output
+                        .into_iter()
+                        .map(|(k, v)| (Value::from(k), Value::from(v)))
+                        .collect(),
+                )
+            })
             .map_err(Error::from)
     }
 
@@ -396,7 +418,7 @@ impl Handler {
     /// E.g. pad_left 4 "0x1234" -> "0x00001234"
     /// E.g. pad_left 4 "[1, 2]" -> "[0x00, 0x00, 0x01, 0x02]"
     fn handle_pad_left(&mut self, padding: u64, input: &str) -> Result<Value, Error> {
-        tracing::info!("Pad");
+        tracing::debug!("padding: {}, input: {}", padding, input);
         self.client
             .pad_left(padding as usize, input)
             .map(Value::from)
@@ -412,6 +434,18 @@ impl Handler {
             .pad_right(padding as usize, input)
             .map(Value::from)
             .map_err(Error::from)
+    }
+
+    fn handle_classify_and_hash(&mut self, algo: Vec<String>, input: &str) -> Result<Value, Error> {
+        tracing::info!("Classify and hash");
+        self.client.classify_and_hash(algo, input).map(|output| {
+            Value::Map(
+                output
+                    .into_iter()
+                    .map(|(k, v)| (Value::from(k), Value::from(v)))
+                    .collect(),
+            )
+        })
     }
 
     /// Hash the given input
@@ -430,14 +464,16 @@ impl Handler {
                 let values = algo
                     .iter()
                     .flat_map(|algo| {
-                        self.client.hash(algo, input, encoding).map(|output| {
-                            (
-                                algo.clone(),
-                                Hashing {
-                                    output: output.to_string(),
-                                },
-                            )
-                        })
+                        self.client
+                            .hash(algo, input, Encoding::from(encoding))
+                            .map(|output| {
+                                (
+                                    algo.clone(),
+                                    Hashing {
+                                        output: output.to_string(),
+                                    },
+                                )
+                            })
                     })
                     .collect::<HashMap<String, Hashing>>();
                 if values.is_empty() {
@@ -472,7 +508,7 @@ impl RequestHandler for Handler {
                 .handle_convert(input_encoding, output_encoding, &selection.text)
                 .map(Value::from),
             Request::ClassifyAndConvert {
-                ref output_encoding,
+                output_encoding,
                 selection,
             } => self.handle_classify_and_convert(output_encoding, &selection.text),
             Request::FlattenArray { selection } => self.handle_flatten_array(&selection.text),
@@ -510,6 +546,9 @@ impl RequestHandler for Handler {
                 selection,
                 input_encoding,
             } => self.handle_hash(algo, &selection.text, input_encoding),
+            Request::ClassifyAndHash { algo, selection } => {
+                self.handle_classify_and_hash(algo, &selection.text)
+            }
             Request::Unknown(values) => {
                 Err(Error::UnknownRequest(format!("{}, {:?}", name, values)))
             }

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use neovim_lib::Value;
 
 use crate::{
@@ -44,63 +46,75 @@ impl Client {
     }
 
     pub fn classify<'a>(&'a self, input: &'a str) -> Vec<Classification<'a>> {
-        self.classifier.classify(input)
+        let results = self.classifier.classify(input);
+        tracing::debug!("Results: {:?}", results);
+        results
     }
 
     pub fn classify_best_match<'a>(&'a self, input: &'a str) -> Classification<'a> {
         self.classify(input).into_iter().min().unwrap_or_default()
     }
 
-    pub fn classify_with<'a>(&'a self, encoding: &str, input: &'a str) -> Classification<'a> {
-        self.classifier
-            .classify_with(&Encoding::from(encoding), input)
+    pub fn classify_with<'a>(&'a self, encoding: &Encoding, input: &'a str) -> Classification<'a> {
+        self.classifier.classify_with(encoding, input)
     }
 
-    pub fn decode(&self, encoding: &str, input: &str) -> Result<Decoded, Error> {
+    pub fn decode(&self, encoding: &Encoding, input: &str) -> Result<Decoded, Error> {
         let classification = self.classify_with(encoding, input);
         tracing::debug!("Classification: {:?}", classification);
         let decoded = Decoded::from(&classification);
         Ok(decoded)
     }
 
-    pub fn encode(&self, encoding: &str, input: &Decoded) -> Result<String, Error> {
-        let encoding = Encoding::from(encoding);
+    pub fn encode(&self, encoding: &Encoding, input: &Decoded) -> Result<String, Error> {
         let encoded = encoding.encode(input, None)?;
         Ok(encoded)
     }
 
     pub fn convert(
         &self,
-        input_encoding: &str,
-        encoding: &str,
+        input_encoding: &Encoding,
+        mut output_encoding: Encoding,
         input: &str,
     ) -> Result<String, Error> {
         let pad = Some(false);
         let classification = self.classify_with(input_encoding, input);
-        let encoding = Encoding::from(encoding);
+        if matches!(&classification, Classification::Array(arr) if arr.is_lines()) {
+            output_encoding = output_encoding.to_lines();
+        }
         let decoded = Decoded::from(&classification);
         if matches!(&classification, Classification::Array(arr) if arr.is_lines()) {
-            return Ok(encoding.to_lines().encode(&decoded, pad)?);
+            return Ok(output_encoding.to_lines().encode(&decoded, pad)?);
         }
-        Ok(encoding.encode(&decoded, pad)?)
+        Ok(output_encoding.encode(&decoded, pad)?)
     }
 
-    pub fn classify_and_convert(&self, encoding: &str, input: &str) -> Result<String, Error> {
+    pub fn classify_and_convert(
+        &self,
+        mut output_encoding: Vec<Encoding>,
+        input: &str,
+    ) -> Result<HashMap<String, String>, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
-        let mut encoding = Encoding::from(encoding);
         if matches!(&best, Classification::Array(arr) if arr.is_lines()) {
-            encoding = encoding.to_lines();
+            output_encoding = output_encoding.into_iter().map(|e| e.to_lines()).collect();
         }
 
         let decoded = Decoded::from(&best);
-        Ok(encoding.encode(&decoded, pad)?)
+        Ok(output_encoding
+            .into_iter()
+            .flat_map(|e| {
+                e.encode(&decoded, pad)
+                    .map(|result| (e.to_string(), result))
+            })
+            .collect())
     }
 
     pub fn flatten_array(&self, input: &str) -> Result<String, Error> {
         let pad = Some(false);
         let best = self.classify_best_match(input);
         let decoded = Decoded::from(&best);
+        tracing::debug!("Decoded: {:?}", decoded);
         let flattened = decoded.flatten();
         Ok(best.encoding().flatten().encode(&flattened, pad)?)
     }
@@ -159,33 +173,38 @@ impl Client {
         Ok(encoded)
     }
 
-    #[tracing::instrument(skip(self))]
+    pub fn classify_and_hash(
+        &self,
+        algorithm: Vec<String>,
+        input: &str,
+    ) -> Result<HashMap<String, String>, Error> {
+        const DEFAULT_ENCODING: Encoding = Encoding::Base(BaseEncoding::new(16));
+        let pad = Some(false);
+        let best = self.classify_best_match(input);
+        let decoded = Decoded::from(&best);
+        Ok(algorithm
+            .iter()
+            .flat_map(|alg| {
+                Hasher::try_from(alg)
+                    .and_then(|hasher| hasher.hash(&decoded))
+                    .and_then(|hash| DEFAULT_ENCODING.encode(&hash, pad))
+                    .map(|hash| (alg.clone(), hash))
+            })
+            .collect())
+    }
+
     pub fn hash(
         &self,
         algorithm: &str,
         input: &str,
-        input_encoding: &str,
+        input_encoding: Encoding,
     ) -> Result<String, Error> {
-        let classification = self.classify_with(input_encoding, input);
+        const DEFAULT_ENCODING: Encoding = Encoding::Base(BaseEncoding::new(16));
+        let classification = self.classify_with(&input_encoding, input);
         let hash_encoding = Hasher::try_from(algorithm)?;
         let decoded = Decoded::from(&classification);
         let hash = hash_encoding.hash(&decoded)?;
-        let encoded = Encoding::Base(BaseEncoding::new(16)).encode(&hash, Some(true))?;
-        Ok(encoded)
-    }
-
-    pub fn classify_and_hash(&self, algorithm: &str, input: &str) -> Result<String, Error> {
-        let best = self.classify_best_match(input);
-        let hash_encoding = Hasher::try_from(algorithm)?;
-        let encoded = if best.score() > 0 {
-            let decoded = Decoded::from_be_bytes(input.as_bytes());
-            let hash = hash_encoding.hash(&decoded)?;
-            Encoding::Base(BaseEncoding::new(16)).encode(&hash, Some(true))?
-        } else {
-            let decoded = Decoded::from(&best);
-            let hash = hash_encoding.hash(&decoded)?;
-            best.encoding().encode(&hash, Some(true))?
-        };
+        let encoded = DEFAULT_ENCODING.encode(&hash, Some(true))?;
         Ok(encoded)
     }
 }
@@ -204,10 +223,11 @@ mod tests {
     fn test_client_hex_on_lines() {
         let client = Client::new();
         let lines = "123\n456\n789";
+        let encoding = vec![Encoding::from("hex")];
         let converted = client
-            .classify_and_convert("hex", lines)
+            .classify_and_convert(encoding, lines)
             .expect("Failed to convert");
-        assert_eq!(converted, "0x7b\n0x1c8\n0x315");
+        assert_eq!(converted.values().next().unwrap(), "0x7b\n0x1c8\n0x315");
     }
 
     #[test]
@@ -227,10 +247,11 @@ mod tests {
 
         for (test, expect) in test_set.iter().zip(expected.into_iter().cycle()) {
             println!("Test: {}", test);
+            let encoding = vec![Encoding::from("hex")];
             let converted = client
-                .classify_and_convert("hex", test)
+                .classify_and_convert(encoding, test)
                 .expect("Failed to convert");
-            assert_eq!(expect, converted);
+            assert_eq!(expect, converted.values().next().unwrap());
         }
     }
 
@@ -238,13 +259,16 @@ mod tests {
     fn test_client_bytes() {
         let client = Client::new();
         let test_set = ["92488e1e3eeecdf99f3ed2ce59233efb4b4fb612d5655c0ce9ea52b5a502e655"];
-        let expected = vec!["[0x55, 0xe6, 0x2, 0xa5, 0xb5, 0x52, 0xea, 0xe9, 0xc, 0x5c, 0x65, 0xd5, 0x12, 0xb6, 0x4f, 0x4b, 0xfb, 0x3e, 0x23, 0x59, 0xce, 0xd2, 0x3e, 0x9f, 0xf9, 0xcd, 0xee, 0x3e, 0x1e, 0x8e, 0x48, 0x92]"];
+        let expected = vec![
+            "[0x55, 0xe6, 0x2, 0xa5, 0xb5, 0x52, 0xea, 0xe9, 0xc, 0x5c, 0x65, 0xd5, 0x12, 0xb6, 0x4f, 0x4b, 0xfb, 0x3e, 0x23, 0x59, 0xce, 0xd2, 0x3e, 0x9f, 0xf9, 0xcd, 0xee, 0x3e, 0x1e, 0x8e, 0x48, 0x92]"
+        ];
 
         for (test, expect) in test_set.iter().zip(expected) {
+            let encoding = vec![Encoding::from("bytes")];
             let converted = client
-                .classify_and_convert("bytes", test)
+                .classify_and_convert(encoding, test)
                 .expect("Failed to convert");
-            assert_eq!(expect, converted);
+            assert_eq!(expect, converted.values().next().unwrap());
         }
     }
 
@@ -257,10 +281,11 @@ mod tests {
         ];
 
         for test in test_set {
+            let encoding = vec![Encoding::from("int")];
             let converted = client
-                .classify_and_convert("int", test)
+                .classify_and_convert(encoding, test)
                 .expect("Failed to convert");
-            assert_eq!(test, converted);
+            assert_eq!(test, converted.values().next().unwrap());
         }
     }
 
@@ -273,10 +298,11 @@ mod tests {
         ];
 
         for test in test_set {
+            let encoding = vec![Encoding::from("hex")];
             let converted = client
-                .classify_and_convert("hex", test)
+                .classify_and_convert(encoding, test)
                 .expect("Failed to convert");
-            assert_eq!(test, converted);
+            assert_eq!(test, converted.values().next().unwrap());
         }
     }
 
@@ -286,10 +312,11 @@ mod tests {
         let test_set = vec!["aGVsbG8", "b3BlbmNhc3Q"];
 
         for test in test_set {
+            let encoding = vec![Encoding::from("base64")];
             let converted = client
-                .classify_and_convert("base64", test)
+                .classify_and_convert(encoding, test)
                 .expect("Failed to convert");
-            assert_eq!(test, converted);
+            assert_eq!(test, converted.values().next().unwrap());
         }
     }
 
@@ -301,6 +328,11 @@ mod tests {
         let converted = client.flatten_array(test).expect("Failed to convert");
         println!("{}", converted);
         assert_eq!(converted, "[1, 2, 3, 4, 5, 6, 7, 8, 9]");
+
+        let test: &str = "[[123]]";
+        let converted = client.flatten_array(test).expect("Failed to convert");
+        println!("{}", converted);
+        assert_eq!(converted, "[123]");
     }
 
     #[test]
@@ -358,17 +390,15 @@ mod tests {
         let client = Client::new();
 
         let hashed = client
-            .hash("keccak256", "getBalance()", "ascii")
+            .hash("keccak256", "getBalance()", Encoding::from("ascii"))
             .expect("Failed to convert");
         assert_eq!(
             hashed,
             "0x12065fe058ec54d32b956897063181d660e7d27f9bb883d28d5cc5ab3423e23c"
         );
 
-        panic!();
-
         let hashed = client
-            .hash("keccak256", "test_key", "ascii")
+            .hash("keccak256", "test_key", Encoding::from("ascii"))
             .expect("Failed to convert");
         assert_eq!(
             hashed,
@@ -376,7 +406,7 @@ mod tests {
         );
 
         let hashed = client
-            .hash("keccak256", "0x1234", "hex")
+            .hash("keccak256", "0x1234", Encoding::from("ascii"))
             .expect("Failed to convert");
         assert_eq!(
             hashed,

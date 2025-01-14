@@ -126,6 +126,12 @@ impl PartialOrd for Encoding {
     }
 }
 
+impl From<&String> for Encoding {
+    fn from(s: &String) -> Self {
+        Encoding::from(s.as_str())
+    }
+}
+
 impl From<&str> for Encoding {
     fn from(s: &str) -> Self {
         let s = s.trim().to_lowercase();
@@ -211,6 +217,11 @@ mod tests {
         let left = Encoding::Empty;
         let right = Encoding::Base(BaseEncoding::new(16));
         assert_eq!(left.cmp(&right), std::cmp::Ordering::Greater);
+
+        let left = Encoding::Text(TextEncoding::Utf(8));
+        let right = Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16))].into());
+        assert_eq!(left.cmp(&right), std::cmp::Ordering::Greater);
+
     }
 
     #[test]
