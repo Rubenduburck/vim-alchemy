@@ -3,10 +3,12 @@ local M = {}
 
 function M.defaults()
 	local dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
+	local plugin_root = vim.fn.fnamemodify(dir, ":p:h")
+	local bin = plugin_root .. "/bin/vim-alchemy"
 	---@class AlchemyConfig
 	local defaults = {
 		rpc = {
-			bin = dir .. "../../../target/release/vim-alchemy",
+			bin = bin,
 		},
 		hashers = {
 			"md5",
