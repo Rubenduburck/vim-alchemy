@@ -14,8 +14,20 @@ function M.get_visual_selection()
 	local line_start, column_start = vim.fn.getpos("'<")[2], vim.fn.getpos("'<")[3]
 	local line_end, column_end = vim.fn.getpos("'>")[2], vim.fn.getpos("'>")[3]
 	local lines = vim.fn.getline(line_start, line_end)
+
+	-- Convert single string to table
+	if type(lines) == "string" then
+		lines = { lines }
+	end
+
 	if #lines == 0 then
-		return "", nil, nil, nil, nil
+		return {
+			text = "",
+			start_line = nil,
+			start_col = nil,
+			end_line = nil,
+			end_col = nil,
+		}
 	end
 
 	-- Get the actual length of the last line
@@ -23,8 +35,12 @@ function M.get_visual_selection()
 	-- Adjust column_end to not exceed the actual line length
 	column_end = math.min(column_end, last_line_length)
 
-	lines[#lines] = lines[#lines]:sub(1, column_end - (vim.o.selection == "inclusive" and 0 or 1))
-	lines[1] = lines[1]:sub(column_start)
+	-- Handle single or multiple lines
+	if #lines > 0 then
+		lines[#lines] = lines[#lines]:sub(1, column_end - (vim.o.selection == "inclusive" and 0 or 1))
+		lines[1] = lines[1]:sub(column_start)
+	end
+
 	return {
 		text = table.concat(lines, "\n"),
 		start_line = line_start - 1,
@@ -37,13 +53,16 @@ end
 -- If valid selection, replace it with text
 -- Otherwise, insert text at the cursor position
 function M.replace_selection(bufnr, selection, text)
+	-- Split the text into lines
+	local lines = vim.split(text, "\n", { plain = true })
+
 	if
 		selection.start_line == nil
 		or selection.start_col == nil
 		or selection.end_line == nil
 		or selection.end_col == nil
 	then
-		vim.api.nvim_put({ text }, "c", true, true)
+		vim.api.nvim_put(lines, "c", true, true)
 		return
 	else
 		vim.api.nvim_buf_set_text(
@@ -52,7 +71,7 @@ function M.replace_selection(bufnr, selection, text)
 			selection.start_col,
 			selection.end_line,
 			selection.end_col,
-			{ text }
+			lines
 		)
 	end
 end

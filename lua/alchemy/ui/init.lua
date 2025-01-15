@@ -23,7 +23,23 @@ local function create_float(contents, opts)
 
 	-- Create buffer and window
 	local buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_buf_set_lines(buf, 0, -1, true, contents)
+	-- Escape newlines in contents
+	local escaped_contents = {}
+	for _, line in ipairs(contents) do
+		if type(line) == "string" then
+			-- Escape special characters
+			line = line:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "\\%1")
+                -- TODO: should find a better solution for this
+				:gsub("\n", "\\n")
+				:gsub("\r", "\\r")
+				:gsub("\t", "\\t")
+				:gsub("\b", "\\b")
+				:gsub("\f", "\\f")
+				:gsub("\0", "\\0")
+		end
+		table.insert(escaped_contents, tostring(line))
+	end
+	vim.api.nvim_buf_set_lines(buf, 0, -1, true, escaped_contents)
 	local win = vim.api.nvim_open_win(buf, true, float_opts)
 
 	-- Buffer and Window settings

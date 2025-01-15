@@ -63,9 +63,9 @@ function M.classify_and_convert(args, opts)
 		params.output_encoding = args[1]
 	end
 
-    if params.output_encoding == "select" then
-        params.output_encoding = Config.options.output_encodings
-    end
+	if params.output_encoding == "select" then
+		params.output_encoding = Config.options.output_encodings
+	end
 
 	local result = Rpc.classify_and_convert(params)
 	result = Utils.collapse_on_key(result, "output")

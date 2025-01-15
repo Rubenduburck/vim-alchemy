@@ -1,4 +1,4 @@
-local Config = require("alchemy.config")
+local Config = require("alchemy")
 local Utils = require("alchemy.utils")
 local Rpc = require("alchemy.rpc")
 

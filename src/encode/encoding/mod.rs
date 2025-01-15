@@ -201,6 +201,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_display() {
+        assert_eq!(Encoding::Base(BaseEncoding::new(2)).to_string(), "bin");
+        assert_eq!(Encoding::Base(BaseEncoding::new(10)).to_string(), "int");
+        assert_eq!(Encoding::Base(BaseEncoding::new(16)).to_string(), "hex");
+        assert_eq!(Encoding::Base(BaseEncoding::new(58)).to_string(), "base58");
+        assert_eq!(Encoding::Base(BaseEncoding::new(64)).to_string(), "base64");
+        assert_eq!(Encoding::Text(TextEncoding::Utf(8)).to_string(), "utf8");
+        assert_eq!(Encoding::Text(TextEncoding::Ascii).to_string(), "ascii");
+        assert_eq!(
+            Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16))].into()).to_string(),
+            "[hex]"
+        );
+        assert_eq!(
+            Encoding::Array(
+                vec![
+                    Encoding::Base(BaseEncoding::new(16)),
+                    Encoding::Base(BaseEncoding::new(10))
+                ]
+                .into()
+            )
+            .to_string(),
+            "[hex, int]"
+        );
+    }
+
+    #[test]
     fn test_ordering() {
         let left = Encoding::Base(BaseEncoding::new(10));
         let right = Encoding::Base(BaseEncoding::new(16));

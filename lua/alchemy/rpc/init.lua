@@ -66,7 +66,7 @@ function M.pad_right(opts)
 end
 
 function M.classify_and_hash(opts)
-    return vim.rpcrequest(M.jobId, M.AlchClassifyAndHash, opts)
+	return vim.rpcrequest(M.jobId, M.AlchClassifyAndHash, opts)
 end
 
 function M.hash(opts)

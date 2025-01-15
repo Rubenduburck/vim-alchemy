@@ -1,6 +1,6 @@
-local Config = require("alchemy.config")
 local Utils = require("alchemy.utils")
 local Rpc = require("alchemy.rpc")
+local Config = require("alchemy.config")
 
 local function random(args, opts)
 	local params = vim.deepcopy(Config.options.commands.new)
