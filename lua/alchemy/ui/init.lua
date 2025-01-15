@@ -28,13 +28,9 @@ local function create_float(contents, opts)
 	for _, line in ipairs(contents) do
 		if type(line) == "string" then
 			-- Escape special characters
-			line = line:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "\\%1")
-                -- TODO: should find a better solution for this
-				:gsub("\n", "\\n")
+			line = line:gsub("\n", "\\n")
 				:gsub("\r", "\\r")
 				:gsub("\t", "\\t")
-				:gsub("\b", "\\b")
-				:gsub("\f", "\\f")
 				:gsub("\0", "\\0")
 		end
 		table.insert(escaped_contents, tostring(line))
