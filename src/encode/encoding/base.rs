@@ -1,4 +1,7 @@
-use super::{super::decoding::Decoded, super::error::Error};
+use super::{
+    super::{decoding::Decoded, error::Error},
+    Encoding,
+};
 use base64::Engine;
 use rug::Integer;
 
@@ -10,7 +13,12 @@ pub struct BaseEncoding {
 impl std::fmt::Display for BaseEncoding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: Add special display for some cases
-        write!(f, "base{}", self.base)
+        match self.base {
+            2 => write!(f, "{}", Encoding::BINARY),
+            10 => write!(f, "{}", Encoding::INTEGER),
+            16 => write!(f, "{}", Encoding::HEX),
+            base => write!(f, "base{}", base),
+        }
     }
 }
 
@@ -94,5 +102,20 @@ impl BaseEncoding {
             let padding = zero.repeat(padding_count);
             format!("{}{}", padding, s)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display() {
+        assert_eq!(BaseEncoding::new(2).to_string(), "bin");
+        assert_eq!(BaseEncoding::new(10).to_string(), "int");
+        assert_eq!(BaseEncoding::new(16).to_string(), "hex");
+        assert_eq!(BaseEncoding::new(58).to_string(), "base58");
+        assert_eq!(BaseEncoding::new(64).to_string(), "base64");
+        assert_eq!(BaseEncoding::new(100).to_string(), "base100");
     }
 }

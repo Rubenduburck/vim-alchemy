@@ -96,7 +96,6 @@ impl<'a> From<&Array<'a>> for Decoded {
     }
 }
 
-// TODO: check if LE or BE is correct
 impl<'a> From<&Text<'a>> for Decoded {
     fn from(classification: &Text<'a>) -> Self {
         Decoded::from_be_bytes(classification.value.as_bytes())
