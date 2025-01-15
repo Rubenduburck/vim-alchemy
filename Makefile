@@ -25,7 +25,7 @@ $(BIN_DIR):
 install: $(BIN_DIR)
 	curl -L $(DOWNLOAD_URL) | tar xz -C $(BIN_DIR)
 	curl -L $(CHECKSUM_URL) -o $(BIN_DIR)/$(CHECKSUM_NAME)
-	chmod +x $(BIN_DIR)/alchemy
+	chmod +x $(BIN_DIR)/vim-alchemy
 
 clean:
 	rm -rf $(BIN_DIR)
