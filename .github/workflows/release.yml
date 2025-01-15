@@ -4,6 +4,17 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+      prerelease:
+        description: 'Is this a prerelease?'
+        type: boolean
+        required: true
+        default: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -149,9 +160,10 @@ jobs:
           files: |
             ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.*
           generate_release_notes: true
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   # Create a combined checksums file
   checksums:
     needs: release
