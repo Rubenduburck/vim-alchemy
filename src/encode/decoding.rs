@@ -3,10 +3,10 @@ use base64::{
     engine::{self, general_purpose},
     Engine,
 };
-use rug::Integer;
+use rug::Integer as RugInteger;
 
 use crate::{
-    classify::types::{ArrayClassification, Classification, IntegerClassification},
+    classify::types::{Array, Classification, Integer, Text},
     encode::error::Error,
 };
 
@@ -22,16 +22,43 @@ impl Default for Decoded {
     }
 }
 
+impl std::fmt::Display for Decoded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Decoded::Array(a) => {
+                write!(f, "[")?;
+                for (i, item) in a.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", item)?;
+                }
+                write!(f, "]")
+            }
+            Decoded::Bytes(b) => {
+                write!(f, "[")?;
+                for (i, byte) in b.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:02x}", byte)?;
+                }
+                write!(f, "]")
+            }
+        }
+    }
+}
+
 const BASE_64_ENGINE: engine::GeneralPurpose =
     engine::GeneralPurpose::new(&alphabet::STANDARD, general_purpose::NO_PAD);
 
-impl<'a> TryFrom<&IntegerClassification<'a>> for Decoded {
+impl<'a> TryFrom<&Integer<'a>> for Decoded {
     type Error = Error;
 
-    fn try_from(classification: &IntegerClassification<'a>) -> Result<Self, Self::Error> {
+    fn try_from(classification: &Integer<'a>) -> Result<Self, Self::Error> {
         match classification.base {
             2..=36 => Ok(Decoded::from_le_bytes(
-                &Integer::from_str_radix(classification.value, classification.base)?
+                &RugInteger::from_str_radix(classification.value, classification.base)?
                     .to_digits::<u8>(rug::integer::Order::LsfBe),
             )),
             58 => Ok(Decoded::from_be_bytes(
@@ -45,8 +72,8 @@ impl<'a> TryFrom<&IntegerClassification<'a>> for Decoded {
     }
 }
 
-impl<'a> From<ArrayClassification<'a>> for Decoded {
-    fn from(classification: ArrayClassification<'a>) -> Self {
+impl<'a> From<Array<'a>> for Decoded {
+    fn from(classification: Array<'a>) -> Self {
         Decoded::Array(
             classification
                 .collapse()
@@ -57,8 +84,8 @@ impl<'a> From<ArrayClassification<'a>> for Decoded {
     }
 }
 
-impl<'a> From<&ArrayClassification<'a>> for Decoded {
-    fn from(classification: &ArrayClassification<'a>) -> Self {
+impl<'a> From<&Array<'a>> for Decoded {
+    fn from(classification: &Array<'a>) -> Self {
         Decoded::Array(
             classification
                 .collapse()
@@ -66,19 +93,29 @@ impl<'a> From<&ArrayClassification<'a>> for Decoded {
                 .map(Decoded::from)
                 .collect(),
         )
+    }
+}
+
+// TODO: check if LE or BE is correct
+impl<'a> From<&Text<'a>> for Decoded {
+    fn from(classification: &Text<'a>) -> Self {
+        Decoded::from_be_bytes(classification.value.as_bytes())
     }
 }
 
 impl<'a> From<&Classification<'a>> for Decoded {
     fn from(classification: &Classification<'a>) -> Self {
+        tracing::debug!("Decoding classification: {:?}", classification);
         match classification {
             Classification::Array(a) => Decoded::from(a),
             Classification::Integer(i) => Decoded::try_from(i).unwrap_or_default(),
+            Classification::Text(t) => Decoded::from(t),
             _ => Decoded::default(),
         }
     }
 }
 
+#[allow(dead_code)]
 trait Hasher {
     fn update(&mut self, input: &[u8]);
     fn finalize(self) -> [u8; 32];

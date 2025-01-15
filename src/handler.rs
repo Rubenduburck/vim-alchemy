@@ -1,498 +1,570 @@
-use neovim_lib::{Neovim, NeovimApi, Session, Value};
+use std::collections::HashMap;
 
-use crate::{client::Client, encode::error::Error};
+use neovim_lib::{RequestHandler, Value};
 
-use tracing::{error, info, debug};
+use crate::client::Client;
+use crate::encode::encoding::Encoding;
+use crate::error::Error;
+use crate::{get_array, get_param};
 
-pub enum Message {
-    ClassifyAndConvert,
-    FlattenArray,
-    ChunkArray,
-    ReverseArray,
-    RotateArray,
-    Generate,
-    Random,
-    PadLeft,
-    PadRight,
-    Stop,
-    Hash,
-    Unknown(String),
+#[derive(Debug, Clone)]
+pub struct Selection {
+    pub text: String,
+    pub start_line: u64,
+    pub start_col: u64,
+    pub end_line: u64,
+    pub end_col: u64,
 }
 
-impl From<String> for Message {
-    fn from(event: String) -> Self {
-        match event.as_str() {
-            "classify_and_convert" => Message::ClassifyAndConvert,
-            "chunk_array" => Message::ChunkArray,
-            "flatten_array" => Message::FlattenArray,
-            "reverse_array" => Message::ReverseArray,
-            "rotate_array" => Message::RotateArray,
-            "generate" => Message::Generate,
-            "random" => Message::Random,
-            "pad_left" => Message::PadLeft,
-            "pad_right" => Message::PadRight,
-            "stop" => Message::Stop,
-            "hash" => Message::Hash,
-            _ => Message::Unknown(event),
+impl TryFrom<Value> for Selection {
+    type Error = Error;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        let map = value
+            .as_map()
+            .ok_or(Error::InvalidArgs("selection".to_string()))?;
+        Ok(Selection {
+            text: get_param(map, "text")?,
+            start_line: get_param(map, "start_line")?,
+            start_col: get_param(map, "start_col")?,
+            end_line: get_param(map, "end_line")?,
+            end_col: get_param(map, "end_col")?,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum Request {
+    ClassifyAndConvert {
+        output_encoding: Vec<String>,
+        selection: Selection,
+    },
+    Classify {
+        selection: Selection,
+    },
+    Convert {
+        input_encoding: Vec<String>,
+        output_encoding: Vec<String>,
+        selection: Selection,
+    },
+    FlattenArray {
+        selection: Selection,
+    },
+    ChunkArray {
+        chunk_count: u64,
+        selection: Selection,
+    },
+    ReverseArray {
+        depth: u64,
+        selection: Selection,
+    },
+    RotateArray {
+        rotation: i64,
+        selection: Selection,
+    },
+    Generate {
+        encoding: String,
+        bytes: u64,
+    },
+    Random {
+        encoding: String,
+        bytes: u64,
+    },
+    PadLeft {
+        padding: u64,
+        selection: Selection,
+    },
+    PadRight {
+        padding: u64,
+        selection: Selection,
+    },
+    Stop,
+    Hash {
+        algo: Vec<String>,
+        selection: Selection,
+        input_encoding: Vec<String>,
+    },
+    ClassifyAndHash {
+        algo: Vec<String>,
+        selection: Selection,
+    },
+    Unknown(Vec<Value>),
+    Setup(crate::client::Config),
+}
+
+impl Request {
+    const CLASSIFY_AND_CONVERT: &'static str = "classify_and_convert";
+    const CLASSIFY: &'static str = "classify";
+    const CONVERT: &'static str = "convert";
+    const FLATTEN_ARRAY: &'static str = "flatten_array";
+    const CHUNK_ARRAY: &'static str = "chunk_array";
+    const REVERSE_ARRAY: &'static str = "reverse_array";
+    const ROTATE_ARRAY: &'static str = "rotate_array";
+    const GENERATE: &'static str = "generate";
+    const RANDOM: &'static str = "random";
+    const PAD_LEFT: &'static str = "pad_left";
+    const PAD_RIGHT: &'static str = "pad_right";
+    const STOP: &'static str = "stop";
+    const HASH: &'static str = "hash";
+    const CLASSIFY_AND_HASH: &'static str = "classify_and_hash";
+    const SETUP: &'static str = "setup";
+}
+
+impl TryFrom<(&str, Vec<Value>)> for Request {
+    type Error = Error;
+
+    fn try_from(value: (&str, Vec<Value>)) -> Result<Self, Self::Error> {
+        let (method, params) = value;
+        let params = params
+            .first()
+            .and_then(Value::as_map)
+            .ok_or(Error::InvalidArgs("params".to_string()))?;
+        match method {
+            Self::CONVERT => Ok(Request::Convert {
+                input_encoding: get_array(params, "input_encoding")?,
+                output_encoding: get_array(params, "output_encoding")?,
+                selection: get_param(params, "selection")?,
+            }),
+            Self::CLASSIFY => Ok(Request::Classify {
+                selection: get_param(params, "selection")?,
+            }),
+            Self::CLASSIFY_AND_CONVERT => Ok(Request::ClassifyAndConvert {
+                output_encoding: get_array(params, "output_encoding")?,
+                selection: get_param(params, "selection")?,
+            }),
+            Self::FLATTEN_ARRAY => Ok(Request::FlattenArray {
+                selection: get_param(params, "selection")?,
+            }),
+            Self::CHUNK_ARRAY => Ok(Request::ChunkArray {
+                chunk_count: get_param(params, "chunk_count")?,
+                selection: get_param(params, "selection")?,
+            }),
+            Self::REVERSE_ARRAY => Ok(Request::ReverseArray {
+                depth: get_param(params, "depth")?,
+                selection: get_param(params, "selection")?,
+            }),
+            Self::ROTATE_ARRAY => Ok(Request::RotateArray {
+                rotation: get_param(params, "rotation")?,
+                selection: get_param(params, "selection")?,
+            }),
+            Self::GENERATE => Ok(Request::Generate {
+                encoding: get_param(params, "encoding")?,
+                bytes: get_param(params, "bytes")?,
+            }),
+            Self::RANDOM => Ok(Request::Random {
+                encoding: get_param(params, "encoding")?,
+                bytes: get_param(params, "bytes")?,
+            }),
+            Self::PAD_LEFT => Ok(Request::PadLeft {
+                padding: get_param(params, "padding")?,
+                selection: get_param(params, "selection")?,
+            }),
+            Self::PAD_RIGHT => Ok(Request::PadRight {
+                padding: get_param(params, "padding")?,
+                selection: get_param(params, "selection")?,
+            }),
+            Self::STOP => Ok(Request::Stop),
+            Self::HASH => Ok(Request::Hash {
+                algo: get_array(params, "algo")?,
+                selection: get_param(params, "selection")?,
+                input_encoding: get_array(params, "input_encoding")?,
+            }),
+            Self::CLASSIFY_AND_HASH => Ok(Request::ClassifyAndHash {
+                algo: get_array(params, "algo")?,
+                selection: get_param(params, "selection")?,
+            }),
+            Self::SETUP => Ok(Request::Setup(get_param(params, "config")?)),
+            _ => Err(Error::UnknownRequest(method.to_string())),
         }
     }
 }
 
-pub struct EventHandler {
-    nvim: Neovim,
+pub struct Handler {
     client: Client,
 }
 
-impl EventHandler {
-    pub fn new() -> EventHandler {
-        EventHandler {
-            nvim: Neovim::new(Session::new_parent().unwrap_or_else(|e| {
-                error!("Failed to create nvim session: {}", e);
-                panic!();
-            })),
+#[derive(Debug)]
+struct Conversions(HashMap<String, HashMap<String, Conversion>>);
+
+#[derive(Debug)]
+pub struct Conversion {
+    pub input: String,
+    pub output: String,
+}
+
+impl From<Conversion> for Value {
+    fn from(value: Conversion) -> Self {
+        Value::Map(
+            vec![
+                (Value::from("input"), Value::from(value.input)),
+                (Value::from("output"), Value::from(value.output)),
+            ]
+            .into_iter()
+            .collect(),
+        )
+    }
+}
+
+impl From<Conversions> for Value {
+    fn from(value: Conversions) -> Self {
+        Value::Map(
+            value
+                .0
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        Value::from(k),
+                        Value::Map(
+                            v.into_iter()
+                                .map(|(k, v)| (Value::from(k), Value::from(v)))
+                                .collect::<Vec<(Value, Value)>>(),
+                        ),
+                    )
+                })
+                .collect::<Vec<(Value, Value)>>(),
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct Hashing {
+    pub output: String,
+}
+
+impl From<Hashing> for Value {
+    fn from(value: Hashing) -> Self {
+        Value::Map(
+            vec![(Value::from("output"), Value::from(value.output))]
+                .into_iter()
+                .collect(),
+        )
+    }
+}
+
+#[derive(Debug)]
+struct Hashings(HashMap<String, HashMap<String, Hashing>>);
+
+impl From<Hashings> for Value {
+    fn from(value: Hashings) -> Self {
+        Value::Map(
+            value
+                .0
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        Value::from(k),
+                        Value::Map(
+                            v.into_iter()
+                                .map(|(k, v)| (Value::from(k), Value::from(v)))
+                                .collect::<Vec<(Value, Value)>>(),
+                        ),
+                    )
+                })
+                .collect::<Vec<(Value, Value)>>(),
+        )
+    }
+}
+
+impl Handler {
+    pub fn new() -> Handler {
+        Handler {
             client: Client::new(),
         }
     }
 
-    pub fn escape_match(message: &str) -> String {
-        const SPECIAL_CHARS: &str = "^$*?.|{}[]/";
-        message
-            .chars()
-            .fold(vec![], |mut acc, c| {
-                if c == '\n' {
-                    acc.extend(c.escape_default())
-                } else if SPECIAL_CHARS.contains(c) {
-                    acc.extend(['\\', c])
-                } else {
-                    acc.push(c)
-                };
-                acc
+    /// Classify the given input
+    /// E.g. classify "0x1234" -> "hex"
+    fn handle_classify(&mut self, input: &str) -> Result<Value, Error> {
+        tracing::info!("Classify");
+        let mut classifications = self.client.classify(input);
+        classifications.retain(|c| !c.is_empty());
+        classifications.sort();
+        Ok(Value::from(
+            classifications
+                .iter()
+                .map(Value::from)
+                .collect::<Vec<Value>>(),
+        ))
+    }
+
+    /// Convert given classification
+    /// E.g. convert "0x1234" "base64" -> "MTIzNA=="
+    /// Given an array of output_encodings, return a map of the results
+    fn handle_convert(
+        &mut self,
+        input_encoding: Vec<String>,
+        output_encoding: Vec<String>,
+        input: &str,
+    ) -> Result<Conversions, Error> {
+        tracing::info!("Convert");
+        tracing::debug!("input_encoding: {:?}", input_encoding);
+        tracing::debug!("output_encoding: {:?}", output_encoding);
+        let result = input_encoding
+            .iter()
+            .flat_map(|encoding| {
+                self.client
+                    .decode(&Encoding::from(encoding), input)
+                    .map(|decoded| {
+                        output_encoding
+                            .iter()
+                            .flat_map(|output_encoding| {
+                                self.client
+                                    .encode(&Encoding::from(output_encoding), &decoded)
+                                    .map(|encoded| {
+                                        (
+                                            output_encoding.clone(),
+                                            Conversion {
+                                                input: decoded.to_string(),
+                                                output: encoded,
+                                            },
+                                        )
+                                    })
+                            })
+                            .collect::<HashMap<String, Conversion>>()
+                    })
+                    .map(|results| (encoding.clone(), results))
             })
-            .into_iter()
-            .collect()
-    }
-
-    pub fn escape_replace(message: &str) -> String {
-        const SPECIAL_CHARS: &str = "^$*?.|{}[]/";
-        message
-            .chars()
-            .fold(vec![], |mut acc, c| {
-                if c == '\n' {
-                    acc.push('\r')
-                } else if SPECIAL_CHARS.contains(c) {
-                    acc.extend(['\\', c])
-                } else {
-                    acc.push(c)
-                };
-                acc
-            })
-            .into_iter()
-            .collect()
-    }
-
-    pub fn substitute(&mut self, from: &str, to: &str) -> Result<(), Error> {
-        let from = Self::escape_match(from);
-        let to = Self::escape_replace(to);
-        let cmd = format!("'<,'>s/{}/{}", from, to,);
-        info!(
-            "replacing {} with message {} with command {}",
-            from, to, cmd
-        );
-        Ok(self.nvim.command(&cmd)?)
-    }
-
-    pub fn replace(&mut self, from: &str, to: &str) -> Result<(), Error> {
-        info!("replacing {} with message {}", from, to);
-        self.substitute(from, to)?;
-        self.position_cursor_before_selection()
-    }
-
-    pub fn put_after_cursor(&mut self, message: &str) -> Result<(), Error> {
-        info!("putting message at cursor");
-        Ok(self.nvim.command(&format!("normal a{}", message))?)
-    }
-
-    pub fn position_cursor_before_selection(&mut self) -> Result<(), Error> {
-        info!("positioning cursor before selection");
-        Ok(self.nvim.command("normal '<")?)
-    }
-
-    pub fn recv(&mut self) {
-        info!("Starting event loop");
-        let receiver = self.nvim.session.start_event_loop_channel();
-
-        info!("Receiving events");
-        for (event, values) in receiver {
-            match Message::from(event) {
-                Message::Stop => {
-                    info!("Stopping");
-                    break;
-                }
-                message => self.handle(message, values),
-            }
-        }
-    }
-
-    pub fn handle(&mut self, message: Message, values: Vec<Value>) {
-        info!("message received");
-        match message {
-            Message::ClassifyAndConvert => self.handle_classify_and_convert(values),
-            Message::FlattenArray => self.handle_flatten_array(values),
-            Message::ChunkArray => self.handle_chunk_array(values),
-            Message::Unknown(event) => error!("Unknown event: {}", event),
-            Message::ReverseArray => self.handle_reverse_array(values),
-            Message::RotateArray => self.handle_rotate_array(values),
-            Message::Generate => self.handle_generate(values),
-            Message::Random => self.handle_random(values),
-            Message::PadLeft => self.handle_pad_left(values),
-            Message::PadRight => self.handle_pad_right(values),
-            Message::Hash => self.handle_hash(values),
-            _ => {}
-        }
+            .collect::<HashMap<String, HashMap<String, Conversion>>>();
+        Ok(Conversions(result))
     }
 
     /// Classify the given input
     /// Then convert the input to the provided encoding
     /// E.g. classify_and_convert "0x1234" "bytes" -> "[0x12, 0x34]"
-    fn handle_classify_and_convert(&mut self, values: Vec<Value>) {
-        info!("Classify and convert");
-        let mut args = values.iter();
-        let encoding = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        info!("encoding: {}", encoding);
-        let input = match args.next() {
-            Some(encoding) => encoding.as_str().expect("Error: Invalid encoding"),
-            None => {
-                error!("Error: No encoding provided");
-                return;
-            }
-        };
-        info!("input: {}", input);
-        match self.client.classify_and_convert(encoding, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+    fn handle_classify_and_convert(
+        &mut self,
+        output_encoding: Vec<String>,
+        input: &str,
+    ) -> Result<Value, Error> {
+        tracing::info!("Classify and convert");
+        let output_encoding = output_encoding.iter().map(Encoding::from).collect();
+        self.client
+            .classify_and_convert(output_encoding, input)
+            .map(|output| {
+                Value::Map(
+                    output
+                        .into_iter()
+                        .map(|(k, v)| (Value::from(k), Value::from(v)))
+                        .collect(),
+                )
+            })
+            .map_err(Error::from)
     }
 
     /// Flatten the given array
     /// E.g. flatten_array "[[1, 2], [3, 4]]" -> "[1, 2, 3, 4]"
-    fn handle_flatten_array(&mut self, values: Vec<Value>) {
-        info!("Flatten array");
-        let mut args = values.iter();
-        let input = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        info!("input: {}", input);
-        match self.client.flatten_array(input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+    fn handle_flatten_array(&mut self, input: &str) -> Result<Value, Error> {
+        tracing::info!("Flatten array");
+        self.client
+            .flatten_array(input)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Chunk the given array
     /// E.g. chunk_array 2 "[1, 2, 3, 4, 5, 6]" -> "[[1, 2, 3], [4, 5, 6]]"
-    fn handle_chunk_array(&mut self, values: Vec<Value>) {
-        info!("Chunk array");
-        let mut args = values.iter();
-        let chunk_count = match args.next() {
-            Some(input) => input
-                .as_str()
-                .expect("Error: Invalid input")
-                .parse::<u32>()
-                .expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        info!("chunk_count: {}", chunk_count);
-        let input = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        info!("input: {}", input);
-        match self.client.chunk_array(chunk_count as usize, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+    fn handle_chunk_array(&mut self, chunk_count: u64, input: &str) -> Result<Value, Error> {
+        tracing::info!("Chunk array");
+        self.client
+            .chunk_array(chunk_count as usize, input)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Reverse the given array
     /// E.g. reverse_array 2 "[1, 2, 3, 4, 5, 6]" -> "[5, 4, 3, 2, 1]"
-    fn handle_reverse_array(&mut self, values: Vec<Value>) {
-        info!("Reverse array");
-        let mut args = values.iter();
-        let depth = match args.next() {
-            Some(input) => input
-                .as_str()
-                .expect("Error: Invalid input")
-                .parse::<u32>()
-                .expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        let input = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        info!("input: {}", input);
-        match self.client.reverse_array(input, depth as usize) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+    fn handle_reverse_array(&mut self, depth: u64, input: &str) -> Result<Value, Error> {
+        tracing::info!("Reverse array");
+        self.client
+            .reverse_array(input, depth as usize)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Rotate the given array
     /// E.g. rotate_array 2 "[1, 2, 3, 4, 5, 6]" -> "[5, 6, 1, 2, 3, 4]"
-    fn handle_rotate_array(&mut self, values: Vec<Value>) {
-        info!("Rotate array");
-        let mut args = values.iter();
-        let rotation = match args.next() {
-            Some(input) => input
-                .as_str()
-                .expect("Error: Invalid input")
-                .parse::<isize>()
-                .expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        let input = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        info!("input: {}", input);
-        match self.client.rotate_array(input, rotation) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+    fn handle_rotate_array(&mut self, rotation: i64, input: &str) -> Result<Value, Error> {
+        tracing::info!("Rotate array");
+        self.client
+            .rotate_array(input, rotation as isize)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Generate an empty in the given encoding for the given number of bytes
     /// E.g. generate "bytes" 4 -> "[0x00, 0x00, 0x00, 0x00]"
     /// E.g. generate "hex" 4 -> "0x00000000"
     /// E.g. generate "int" 4 -> "00000000"
-    fn handle_generate(&mut self, values: Vec<Value>) {
-        info!("New");
-        let mut args = values.iter();
-        let encoding = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        let number = match args.next() {
-            Some(input) => input
-                .as_str()
-                .expect("Error: Invalid input")
-                .parse::<usize>()
-                .expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        match self.client.generate(encoding, number) {
-            Ok(result) => {
-                if let Err(e) = self.put_after_cursor(&result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+    fn handle_generate(&mut self, encoding: &str, number: u64) -> Result<Value, Error> {
+        tracing::info!("New");
+        self.client
+            .generate(encoding, number as usize)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Generate a random value in the given encoding for the given number of bytes
     /// E.g. random "bytes" 4 -> "[0x12, 0x34, 0x56, 0x78]"
     /// E.g. random "hex" 4 -> "0x12345678"
-    fn handle_random(&mut self, values: Vec<Value>) {
-        info!("Random");
-        let mut args = values.iter();
-        let encoding = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        let number = match args.next() {
-            Some(input) => input
-                .as_str()
-                .expect("Error: Invalid input")
-                .parse::<usize>()
-                .expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        match self.client.random(encoding, number) {
-            Ok(result) => {
-                if let Err(e) = self.put_after_cursor(&result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+    fn handle_random(&mut self, encoding: &str, number: u64) -> Result<Value, Error> {
+        tracing::info!("Random");
+        self.client
+            .random(encoding, number as usize)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Pad the given input to the left to the given bytes
     /// E.g. pad_left 4 "0x1234" -> "0x00001234"
     /// E.g. pad_left 4 "[1, 2]" -> "[0x00, 0x00, 0x01, 0x02]"
-    fn handle_pad_left(&mut self, values: Vec<Value>) {
-        info!("Pad");
-        let mut args = values.iter();
-        let padding = match args.next() {
-            Some(input) => input
-                .as_str()
-                .expect("Error: Invalid input")
-                .parse::<usize>()
-                .expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        let input = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        match self.client.pad_left(padding, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+    fn handle_pad_left(&mut self, padding: u64, input: &str) -> Result<Value, Error> {
+        tracing::debug!("padding: {}, input: {}", padding, input);
+        self.client
+            .pad_left(padding as usize, input)
+            .map(Value::from)
+            .map_err(Error::from)
     }
 
     /// Pad the given input to the right to the given bytes
     /// E.g. pad_right 4 "0x1234" -> "0x12340000"
     /// E.g. pad_right 4 "[1, 2]" -> "[0x01, 0x02, 0x00, 0x00]"
-    fn handle_pad_right(&mut self, values: Vec<Value>) {
-        info!("Pad");
-        let mut args = values.iter();
-        let padding = match args.next() {
-            Some(input) => input
-                .as_str()
-                .expect("Error: Invalid input")
-                .parse::<usize>()
-                .expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        let input = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        match self.client.pad_right(padding, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
-                }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+    fn handle_pad_right(&mut self, padding: u64, input: &str) -> Result<Value, Error> {
+        tracing::info!("Pad");
+        self.client
+            .pad_right(padding as usize, input)
+            .map(Value::from)
+            .map_err(Error::from)
+    }
+
+    fn handle_classify_and_hash(&mut self, algo: Vec<String>, input: &str) -> Result<Value, Error> {
+        tracing::info!("Classify and hash");
+        self.client.classify_and_hash(algo, input).map(|output| {
+            Value::Map(
+                output
+                    .into_iter()
+                    .map(|(k, v)| (Value::from(k), Value::from(v)))
+                    .collect(),
+            )
+        })
     }
 
     /// Hash the given input
     /// If the input is classified as some type, hash the bytes
     /// otherwise, hash as utf8
-    fn handle_hash(&mut self, values: Vec<Value>) {
-        info!("Hash");
-        let mut args = values.iter();
-        let algo = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No algo provided");
-                return;
-            }
-        };
-        let input = match args.next() {
-            Some(input) => input.as_str().expect("Error: Invalid input"),
-            None => {
-                error!("Error: No input provided");
-                return;
-            }
-        };
-        debug!("algo: {}", algo);
-        debug!("input: {}", input);
-        match self.client.hash(algo, input) {
-            Ok(result) => {
-                if let Err(e) = self.replace(input, &result) {
-                    error!("Error: {}", e)
+    fn handle_hash(
+        &mut self,
+        algo: Vec<String>,
+        input: &str,
+        input_encoding: Vec<String>,
+    ) -> Result<Value, Error> {
+        tracing::info!("Hash");
+        let results = input_encoding
+            .iter()
+            .flat_map(|encoding| {
+                let values = algo
+                    .iter()
+                    .flat_map(|algo| {
+                        self.client
+                            .hash(algo, input, Encoding::from(encoding))
+                            .map(|output| {
+                                (
+                                    algo.clone(),
+                                    Hashing {
+                                        output: output.to_string(),
+                                    },
+                                )
+                            })
+                    })
+                    .collect::<HashMap<String, Hashing>>();
+                if values.is_empty() {
+                    None
+                } else {
+                    Some((encoding.clone(), values))
                 }
-            }
-            Err(e) => error!("Error: {}", e),
-        }
+            })
+            .collect::<HashMap<String, HashMap<String, Hashing>>>();
+        Ok(Hashings(results).into())
     }
 }
 
-impl Default for EventHandler {
+impl Default for Handler {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::EventHandler;
+impl RequestHandler for Handler {
+    fn handle_request(&mut self, name: &str, args: Vec<Value>) -> Result<Value, Value> {
+        tracing::debug!("Handling request {}: {:?}", name, args);
+        let request = Request::try_from((name, args))?;
+        tracing::debug!("Parsed request: {:?}", request);
+        let result = match request {
+            Request::Classify { selection } => self.handle_classify(&selection.text),
+            Request::Convert {
+                input_encoding,
+                output_encoding,
+                selection,
+            } => self
+                .handle_convert(input_encoding, output_encoding, &selection.text)
+                .map(Value::from),
+            Request::ClassifyAndConvert {
+                output_encoding,
+                selection,
+            } => self.handle_classify_and_convert(output_encoding, &selection.text),
+            Request::FlattenArray { selection } => self.handle_flatten_array(&selection.text),
+            Request::ChunkArray {
+                chunk_count,
+                selection,
+            } => self.handle_chunk_array(chunk_count, &selection.text),
+            Request::ReverseArray { depth, selection } => {
+                self.handle_reverse_array(depth, &selection.text)
+            }
+            Request::RotateArray {
+                rotation,
+                selection,
+            } => self.handle_rotate_array(rotation, &selection.text),
+            Request::Generate {
+                ref encoding,
+                bytes,
+            } => self.handle_generate(encoding, bytes),
+            Request::Random {
+                ref encoding,
+                bytes,
+            } => self.handle_random(encoding, bytes),
+            Request::PadLeft { padding, selection } => {
+                self.handle_pad_left(padding, &selection.text)
+            }
+            Request::PadRight { padding, selection } => {
+                self.handle_pad_right(padding, &selection.text)
+            }
+            Request::Stop => {
+                tracing::info!("Stopping");
+                std::process::exit(0);
+            }
+            Request::Hash {
+                algo,
+                selection,
+                input_encoding,
+            } => self.handle_hash(algo, &selection.text, input_encoding),
+            Request::ClassifyAndHash { algo, selection } => {
+                self.handle_classify_and_hash(algo, &selection.text)
+            }
+            Request::Unknown(values) => {
+                Err(Error::UnknownRequest(format!("{}, {:?}", name, values)))
+            }
+            Request::Setup(config) => {
+                tracing::info!("Setting up client");
+                self.client.setup(config);
+                Ok(Value::Nil)
+            }
+        };
+        tracing::debug!("Result: {:?}", result);
+        result.map_err(|e| e.into())
+    }
+}
 
-    #[test]
-    fn test_escape() {
-        let test = "[1\n2\n3]";
-        let escaped = EventHandler::escape_match(test);
-        assert_eq!(escaped, "\\[1\\n2\\n3\\]");
+impl neovim_lib::Handler for Handler {
+    fn handle_notify(&mut self, name: &str, args: Vec<Value>) {
+        tracing::debug!("Handling notify {}: {:?}", name, args);
     }
 }

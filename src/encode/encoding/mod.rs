@@ -1,12 +1,14 @@
-use super::{
-    decoding::Decoded,
-    error::Error,
-    hashing::Hasher,
-    types::{Bracket, Separator},
-};
-use crate::encode::types::Brackets;
-use base64::Engine;
-use rug::Integer;
+use super::{decoding::Decoded, error::Error, hashing::Hasher, types::Separator};
+
+pub mod base;
+pub use base::BaseEncoding;
+
+pub mod text;
+use neovim_lib::Value;
+pub use text::TextEncoding;
+
+pub mod array;
+pub use array::ArrayEncoding;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 /// Higher priority first, in case errors are equal.
@@ -21,14 +23,32 @@ pub enum Encoding {
     Hash(Hasher),
 }
 
-impl Encoding {
-    const INTEGER: &'static str = "int";
-    const BINARY: &'static str = "bin";
-    const BYTES: &'static str = "bytes";
-    const BASE: &'static str = "base";
-    const UTF: &'static str = "utf";
-    const HEX: &'static str = "hex";
+impl std::fmt::Display for Encoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Encoding::Text(t) => write!(f, "{}", t),
+            Encoding::Base(b) => write!(f, "{}", b),
+            Encoding::Array(a) => write!(f, "{}", a),
+            Encoding::Empty => write!(f, "Empty"),
+            Encoding::Hash(h) => write!(f, "{}", h),
+        }
+    }
+}
 
+impl From<&Encoding> for Value {
+    fn from(encoding: &Encoding) -> Value {
+        encoding.to_string().into()
+    }
+}
+
+impl Encoding {
+    pub(crate) const INTEGER: &'static str = "int";
+    pub(crate) const BINARY: &'static str = "bin";
+    pub(crate) const BYTES: &'static str = "bytes";
+    pub(crate) const BASE: &'static str = "base";
+    pub(crate) const UTF: &'static str = "utf";
+    pub(crate) const HEX: &'static str = "hex";
+    pub(crate) const ASCII: &'static str = "ascii";
 
     pub fn to_lines(&self) -> Encoding {
         Encoding::Array(ArrayEncoding::new(
@@ -37,7 +57,6 @@ impl Encoding {
             Some(Separator::from('\n')),
         ))
     }
-
 
     pub fn flatten(&self) -> Encoding {
         match self {
@@ -56,8 +75,6 @@ impl Encoding {
         }
     }
 
-
-
     pub fn generate(&self, length: usize) -> Result<String, Error> {
         self.encode(&Decoded::from_le_bytes(&vec![0; length]), Some(true))
     }
@@ -75,233 +92,6 @@ impl Encoding {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct BaseEncoding {
-    base: i32,
-}
-
-impl BaseEncoding {
-
-    const BASE_64_ENGINE: base64::engine::general_purpose::GeneralPurpose =
-        base64::engine::general_purpose::GeneralPurpose::new(
-            &base64::alphabet::STANDARD,
-            base64::engine::general_purpose::NO_PAD,
-        );
-
-    pub fn new(base: i32) -> Self {
-        Self { base }
-    }
-
-    pub fn base_n_zero(base: i32) -> String {
-        match base {
-            64 => "A",
-            58 => "1",
-            _ => "0",
-        }
-        .into()
-    }
-
-    pub fn base_n_prefix(base: i32) -> String {
-        match base {
-            16 => "0x",
-            2 => "0b",
-            _ => Default::default(),
-        }
-        .into()
-    }
-
-    fn format(base: i32) -> impl FnOnce(String) -> String {
-        move |s| format!("{}{}", Self::base_n_prefix(base), s)
-    }
-
-    pub fn encode(&self, input: &Decoded, pad: Option<bool>) -> Result<String, Error> {
-        match self.base {
-            2..=36 => Self::encode_with_rug(input, self.base),
-            58 => Self::encode_base_58(input),
-            64 => Self::encode_base_64(input),
-            _ => Err(Error::UnsupportedBase(self.base)),
-        }
-        .map(|x| {
-            if pad.unwrap_or(false) {
-                Self::base_n_left_pad(self.base, input.len())(x)
-            } else {
-                x
-            }
-        })
-        .map(Self::format(self.base))
-    }
-
-    fn encode_with_rug(input: &Decoded, base: i32) -> Result<String, Error> {
-        Ok(
-            Integer::from_digits(&input.to_le_bytes(), rug::integer::Order::Lsf)
-                .to_string_radix(base),
-        )
-    }
-
-    fn encode_base_58(input: &Decoded) -> Result<String, Error> {
-        Ok(bs58::encode(input.to_be_bytes().clone()).into_string())
-    }
-
-    fn encode_base_64(input: &Decoded) -> Result<String, Error> {
-        Ok(Self::BASE_64_ENGINE.encode(input.to_be_bytes().clone()))
-    }
-
-    fn base_n_pad_count(base: i32, target_byte_count: usize) -> usize {
-        if base < 2 {
-            return 0;
-        }
-        (8.0 / f64::log2(base as f64) * (target_byte_count as f64)).ceil() as usize
-    }
-
-    pub fn base_n_left_pad(base: i32, target_byte_count: usize) -> impl FnOnce(String) -> String {
-        let zero = Self::base_n_zero(base);
-        let target_str_len = Self::base_n_pad_count(base, target_byte_count);
-        move |s| {
-            let padding_count = target_str_len.saturating_sub(s.len());
-            let padding = zero.repeat(padding_count);
-            format!("{}{}", padding, s)
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum TextEncoding {
-    Utf(u8),
-    Ascii,
-}
-
-impl TextEncoding {
-    pub fn encode(&self, v: &Decoded) -> Result<String, Error> {
-        match self {
-            TextEncoding::Utf(8) | TextEncoding::Ascii => {
-                Ok(String::from_utf8_lossy(&v.to_le_bytes()).to_string())
-            }
-            TextEncoding::Utf(16) => {
-                let utf_16_bytes: Vec<u16> = v
-                    .to_le_bytes()
-                    .chunks(2)
-                    .map(|chunk| {
-                        chunk
-                            .iter()
-                            .enumerate()
-                            .map(|(i, b)| {
-                                u16::from(*b) * if i == 1 { 1 } else { u16::from(u8::MAX) }
-                            })
-                            .sum()
-                    })
-                    .collect();
-                Ok(String::from_utf16_lossy(&utf_16_bytes).to_string())
-            }
-            _ => Err(Error::UnsupportedEncoding),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ArrayEncoding {
-    pub values: Vec<Encoding>,
-    pub brackets: Brackets,
-    pub separator: Separator,
-}
-
-impl ArrayEncoding {
-    pub fn new(
-        values: Vec<Encoding>,
-        brackets: Option<Brackets>,
-        separator: Option<Separator>,
-    ) -> Self {
-        Self {
-            values,
-            brackets: brackets.unwrap_or_default(),
-            separator: separator.unwrap_or_default(),
-        }
-    }
-
-    pub fn flattened_values(&self) -> Vec<Encoding> {
-        self.values
-            .iter()
-            .flat_map(|v| match v {
-                Encoding::Array(a) => a.flattened_values(),
-                _ => vec![v.clone()],
-            })
-            .collect()
-    }
-
-    pub fn flatten(&self) -> Self {
-        Self::new(
-            self.flattened_values(),
-            Some(self.brackets.clone()),
-            Some(self.separator),
-        )
-    }
-
-    pub fn brackets(&self) -> [String; 2] {
-        [
-            self.brackets
-                .open()
-                .map(|c| c.to_string())
-                .unwrap_or_default(),
-            self.brackets
-                .close()
-                .map(|c| c.to_string())
-                .unwrap_or_default(),
-        ]
-    }
-
-    pub fn inner(&self) -> &Vec<Encoding> {
-        &self.values
-    }
-
-    pub fn newline(&self) -> bool {
-        self.separator.newline
-    }
-
-    pub fn encode(&self, input: &Decoded, pad: Option<bool>) -> Result<String, Error> {
-        Ok(self.brackets().join(
-            &input
-                .to_vec()
-                .iter()
-                .zip(self.values.iter().cycle())
-                .map(|(x, y)| y.encode(x, pad))
-                .collect::<Result<Vec<String>, Error>>()?
-                .join(&self.separator.to_string()),
-        ))
-    }
-}
-
-impl From<Vec<Encoding>> for ArrayEncoding {
-    fn from(values: Vec<Encoding>) -> Self {
-        Self::new(
-            values,
-            Some(Brackets::new(
-                Some(Bracket::default()),
-                Some(Bracket::default()),
-            )),
-            Some(Separator::default()),
-        )
-    }
-}
-
-impl Eq for ArrayEncoding {}
-
-impl PartialEq for ArrayEncoding {
-    fn eq(&self, other: &Self) -> bool {
-        self.values == other.values
-    }
-}
-
-impl Ord for ArrayEncoding {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.values.cmp(&other.values)
-    }
-}
-
-impl PartialOrd for ArrayEncoding {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 // Some ugly stuff in here, hardcoded priorities
 // should probably find a better solution for this
 impl Ord for Encoding {
@@ -312,7 +102,10 @@ impl Ord for Encoding {
             (Encoding::Array(a), Encoding::Array(b)) => a.cmp(b),
             (Encoding::Base(_), Encoding::Array(_)) => std::cmp::Ordering::Less,
             (Encoding::Array(_), Encoding::Base(_)) => std::cmp::Ordering::Greater,
-            (Encoding::Base(BaseEncoding{base: a}), Encoding::Base(BaseEncoding{base: b})) => match (*a, *b) {
+            (
+                Encoding::Base(BaseEncoding { base: a }),
+                Encoding::Base(BaseEncoding { base: b }),
+            ) => match (*a, *b) {
                 (10, _) => std::cmp::Ordering::Less,
                 (_, 10) => std::cmp::Ordering::Greater,
                 (64, 58) => std::cmp::Ordering::Less,
@@ -333,27 +126,59 @@ impl PartialOrd for Encoding {
     }
 }
 
+impl From<&String> for Encoding {
+    fn from(s: &String) -> Self {
+        Encoding::from(s.as_str())
+    }
+}
+
 impl From<&str> for Encoding {
     fn from(s: &str) -> Self {
         let s = s.trim().to_lowercase();
 
         // [hex, int, base12] -> Array([Base(16), Base(10), Base(12)])
+        // [hex; 3] -> Array([Base(16), Base(16), Base(16)])
         if s.starts_with('[') && s.ends_with(']') {
-            Encoding::Array(
-                s[1..s.len() - 1]
+            // TODO: make this smoother
+            let inner = s[1..s.len() - 1].trim();
+            let split = inner.split(';').collect::<Vec<&str>>();
+            let values = if split.len() == 2 {
+                let count = split[1].trim().parse::<usize>().unwrap_or(1);
+                let inner = split[0]
+                    .split(',')
+                    .map(|e| Encoding::from(e.trim()))
+                    .collect::<Vec<_>>();
+                let values = inner
+                    .iter()
+                    .cycle()
+                    .take(count)
+                    .cloned()
+                    .collect::<Vec<Encoding>>();
+                values.into()
+            } else {
+                inner
                     .split(',')
                     .map(|e| Encoding::from(e.trim()))
                     .collect::<Vec<_>>()
-                    .into(),
-            )
+                    .into()
+            };
+            Encoding::Array(values)
 
-        // base64 -> Base(64)
+        // base64, base-64, base_64, etc -> Base(64)
         } else if let Some(stripped) = s.strip_prefix(Self::BASE) {
-            Encoding::Base(BaseEncoding::new(stripped.parse::<i32>().unwrap_or(10)))
+            let num_str = stripped
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>();
+            Encoding::Base(BaseEncoding::new(num_str.parse::<i32>().unwrap_or(10)))
 
         // utf8 -> Utf(8)
         } else if let Some(stripped) = s.strip_prefix(Self::UTF) {
-            Encoding::Text(TextEncoding::Utf(stripped.parse::<u8>().unwrap_or(8)))
+            let num_str = stripped
+                .chars()
+                .filter(|c| c.is_ascii_digit())
+                .collect::<String>();
+            Encoding::Text(TextEncoding::Utf(num_str.parse::<u8>().unwrap_or(8)))
 
         // hex -> Base(16)
         } else {
@@ -362,6 +187,7 @@ impl From<&str> for Encoding {
                 Self::HEX => Encoding::Base(BaseEncoding::new(16)),
                 Self::INTEGER => Encoding::Base(BaseEncoding::new(10)),
                 Self::BYTES => Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16))].into()),
+                Self::ASCII => Encoding::Text(TextEncoding::Ascii),
                 _ => Encoding::Base(BaseEncoding::new(10)),
             }
         }
@@ -390,6 +216,10 @@ mod tests {
 
         let left = Encoding::Empty;
         let right = Encoding::Base(BaseEncoding::new(16));
+        assert_eq!(left.cmp(&right), std::cmp::Ordering::Greater);
+
+        let left = Encoding::Text(TextEncoding::Utf(8));
+        let right = Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16))].into());
         assert_eq!(left.cmp(&right), std::cmp::Ordering::Greater);
     }
 
@@ -421,15 +251,29 @@ mod tests {
             "[hex, int]",
             "base58",
             "base3",
+            "[hex; 2]",
         ];
         let expected_output = vec![
             Encoding::Base(BaseEncoding::new(16)),
             Encoding::Base(BaseEncoding::new(64)),
             Encoding::Base(BaseEncoding::new(10)),
             Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16))].into()),
-            Encoding::Array(vec![Encoding::Base(BaseEncoding::new(16)), Encoding::Base(BaseEncoding::new(10))].into()),
+            Encoding::Array(
+                vec![
+                    Encoding::Base(BaseEncoding::new(16)),
+                    Encoding::Base(BaseEncoding::new(10)),
+                ]
+                .into(),
+            ),
             Encoding::Base(BaseEncoding::new(58)),
             Encoding::Base(BaseEncoding::new(3)),
+            Encoding::Array(
+                vec![
+                    Encoding::Base(BaseEncoding::new(16)),
+                    Encoding::Base(BaseEncoding::new(16)),
+                ]
+                .into(),
+            ),
         ];
         for (i, e) in test_input.iter().zip(expected_output.iter()) {
             assert_eq!(Encoding::from(*i), *e);
@@ -512,7 +356,11 @@ mod tests {
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Array(ArrayEncoding::new(
-                            vec![Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10))],
+                            vec![
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                            ],
                             None,
                             None,
                         )),
@@ -556,7 +404,11 @@ mod tests {
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Array(ArrayEncoding::new(
-                            vec![Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10))],
+                            vec![
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                            ],
                             None,
                             None,
                         )),
@@ -596,7 +448,11 @@ mod tests {
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Base(BaseEncoding::new(10)),
                         Encoding::Array(ArrayEncoding::new(
-                            vec![Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10)), Encoding::Base(BaseEncoding::new(10))],
+                            vec![
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                                Encoding::Base(BaseEncoding::new(10)),
+                            ],
                             None,
                             None,
                         )),
@@ -619,7 +475,10 @@ mod tests {
             Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
         ]);
         let result = Encoding::Array(ArrayEncoding::new(
-            vec![Encoding::Base(BaseEncoding::new(16)), Encoding::Base(BaseEncoding::new(10))],
+            vec![
+                Encoding::Base(BaseEncoding::new(16)),
+                Encoding::Base(BaseEncoding::new(10)),
+            ],
             None,
             Some(Separator::from('\n')),
         ))
@@ -634,7 +493,10 @@ mod tests {
             Decoded::Bytes(vec![0x90, 0x78, 0x56, 0x34, 0x12]),
         ]);
         let result = Encoding::Array(ArrayEncoding::new(
-            vec![Encoding::Base(BaseEncoding::new(16)), Encoding::Base(BaseEncoding::new(10))],
+            vec![
+                Encoding::Base(BaseEncoding::new(16)),
+                Encoding::Base(BaseEncoding::new(10)),
+            ],
             Some(Bracket::Round.into()),
             Some(Separator::from(",")),
         ))
@@ -645,8 +507,13 @@ mod tests {
     #[test]
     fn test_encode_hash() {
         let test_input = "test_key";
-        let hashed = Hasher::Keccak(256).encode(&Decoded::from_be_bytes(test_input.as_bytes()), Some(true)).unwrap();
-        assert_eq!(&hashed, "0xad62e20f6955fd04f45eef123e61f3c74ce24e1ce4f6ab270b886cd860fd65ac");
+        let hashed = Hasher::Keccak(256)
+            .encode(&Decoded::from_be_bytes(test_input.as_bytes()), Some(true))
+            .unwrap();
+        assert_eq!(
+            &hashed,
+            "0xad62e20f6955fd04f45eef123e61f3c74ce24e1ce4f6ab270b886cd860fd65ac"
+        );
         println!("{:?}", hashed);
     }
 

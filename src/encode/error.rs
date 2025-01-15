@@ -1,3 +1,4 @@
+use neovim_lib::Value;
 use thiserror;
 
 #[derive(thiserror::Error, Debug)]
@@ -15,6 +16,17 @@ pub enum Error {
     #[error("Neovim error: {0}")]
     NeovimLib(#[from] neovim_lib::neovim::CallError),
 
+    #[error("Missing input")]
+    MissingInput,
+    #[error("Missing encoding")]
+    MissingEncoding,
+
     #[error("Unsupported hash")]
     UnsupportedHash,
+}
+
+impl From<Error> for Value {
+    fn from(e: Error) -> Self {
+        Value::from(format!("{}", e))
+    }
 }

@@ -1,7 +1,7 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Default, Hash, Clone)]
+#[derive(Default, Debug, Hash, Clone)]
 pub struct Brackets {
     open: Option<Bracket>,
     close: Option<Bracket>,

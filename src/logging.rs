@@ -1,11 +1,11 @@
 use std::{fs::OpenOptions, sync::Arc};
 use tracing_subscriber::{filter, prelude::*};
 
-use crate::error::ConvertError;
+use crate::error::Error;
 
-pub fn setup_tracing() -> Result<(), ConvertError> {
+pub fn setup_tracing() -> Result<(), Error> {
     // get home dir from env
-    let home_dir = std::env::var("HOME")?; 
+    let home_dir = std::env::var("HOME")?;
     let log_file_name = format!("{}/.local/share/nvim/alchemy.log", home_dir);
     let file = OpenOptions::new()
         .create(true)
