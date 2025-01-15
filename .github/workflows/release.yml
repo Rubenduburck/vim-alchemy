@@ -22,30 +22,8 @@ env:
 
 jobs:
   release-linux:
-    name: Release - ${{ matrix.platform.release_for }}
+    name: Release - Linux x86_64
     runs-on: ubuntu-latest
-    
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          # Linux x86_64
-          - release_for: Linux-x86_64
-            target: x86_64-unknown-linux-gnu
-            binary_postfix: ""
-            cross: false
-            
-          # Linux aarch64 (ARM64)
-          - release_for: Linux-aarch64
-            target: aarch64-unknown-linux-gnu
-            binary_postfix: ""
-            cross: true
-            
-          # Linux armv7 (32-bit ARM)
-          - release_for: Linux-armv7
-            target: armv7-unknown-linux-gnueabihf
-            binary_postfix: ""
-            cross: true
 
     steps:
       - uses: actions/checkout@v3
@@ -54,7 +32,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          target: ${{ matrix.platform.target }}
+          target: x86_64-unknown-linux-gnu
           override: true
       
       - name: Install dependencies
@@ -62,41 +40,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgmp-dev
           
-      - name: Install cross-compilation dependencies (aarch64)
-        if: matrix.platform.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          
-      - name: Install cross-compilation dependencies (armv7)
-        if: matrix.platform.target == 'armv7-unknown-linux-gnueabihf'
-        run: |
-          sudo apt-get install -y gcc-arm-linux-gnueabihf
-          
-      - name: Install cross-compilation tool
-        if: matrix.platform.cross
-        run: cargo install cross
-        
-      - name: Build (Cross)
-        if: matrix.platform.cross
-        run: |
-          cross build --verbose --release --target ${{ matrix.platform.target }}
-          
-      - name: Build (Native)
-        if: "!matrix.platform.cross"
+      - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --verbose --release --target ${{ matrix.platform.target }}
+          args: --verbose --release
           
       - name: Prepare assets
         shell: bash
         run: |
           mkdir -p release/
-          if [ "${{ matrix.platform.cross }}" = "true" ]; then
-            cp target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}${{ matrix.platform.binary_postfix }} release/
-          else
-            cp target/${{ matrix.platform.target }}/release/${{ env.BINARY_NAME }}${{ matrix.platform.binary_postfix }} release/
-          fi
+          cp target/release/${{ env.BINARY_NAME }} release/
           
           # Include additional files
           cp README.md release/ || true
@@ -104,42 +58,21 @@ jobs:
           
           # Create archive
           cd release
-          tar -czf ../${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.tar.gz *
+          tar -czf ../${{ env.BINARY_NAME }}-Linux-x86_64.tar.gz *
           cd ..
           
       - name: Generate SHA-256 checksums
         shell: bash
         run: |
-          sha256sum ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.tar.gz > ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.sha256
+          sha256sum ${{ env.BINARY_NAME }}-Linux-x86_64.tar.gz > ${{ env.BINARY_NAME }}-Linux-x86_64.sha256
           
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.*
+            ${{ env.BINARY_NAME }}-Linux-x86_64.*
           generate_release_notes: true
           prerelease: ${{ github.event.inputs.prerelease || false }}
-          tag_name: ${{ github.event.inputs.version || github.ref_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  checksums:
-    needs: release-linux
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        
-      - name: Combine checksums
-        run: |
-          find . -name "*.sha256" -exec cat {} \; > SHA256SUMS
-          
-      - name: Upload checksums
-        uses: softprops/action-gh-release@v1
-        with:
-          files: SHA256SUMS
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
