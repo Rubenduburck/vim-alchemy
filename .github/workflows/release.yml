@@ -20,10 +20,15 @@ env:
   CARGO_TERM_COLOR: always
   BINARY_NAME: vim-alchemy
 
+permissions:
+  contents: write # Add this line to grant write permissions
+
 jobs:
   release-linux:
     name: Release - Linux x86_64
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Add this line to grant write permissions to the job
 
     steps:
       - uses: actions/checkout@v3
