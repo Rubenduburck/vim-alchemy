@@ -20,37 +20,37 @@ function M.defaults()
 		input_encodings = {
 			"int",
 			"hex",
-            "bin",
-            "base58",
+			"bin",
+			"base58",
 			"base64",
 			"utf8",
 			"utf16",
 			"ascii",
 		},
-        output_encodings = {
-            "int",
-            "hex",
-            "bin",
-            "bytes",
-            "[int]",
-            "base58",
-            "base64",
-            "utf8",
-            "utf16",
-            "ascii",
-        },
+		output_encodings = {
+			"int",
+			"hex",
+			"bin",
+			"bytes",
+			"[int]",
+			"base58",
+			"base64",
+			"utf8",
+			"utf16",
+			"ascii",
+		},
 		commands = {
 			classify = {
 				input_encoding = "auto",
 			},
 			convert = {
-                input_encoding = "select",
+				input_encoding = "select",
 				output_encoding = "select",
 			},
-            hash = {
-                input_encoding = "select",
-                algo = "select",
-            },
+			hash = {
+				input_encoding = "select",
+				algo = "select",
+			},
 			new = {
 				encoding = "int",
 				bytes = "int",
@@ -60,7 +60,7 @@ function M.defaults()
 				bytes = "int",
 			},
 			chunk = {
-				count = "int",
+				chunk_count = 1,
 			},
 			rotate = {
 				rotation = 1,
@@ -70,6 +70,15 @@ function M.defaults()
 			},
 			pad = {
 				padding = 32,
+			},
+		},
+		ui = {
+			float_opts = {
+				relative = "cursor",
+				row = 1,
+				col = 0,
+				style = "minimal",
+				border = "none", -- removed borders
 			},
 		},
 	}

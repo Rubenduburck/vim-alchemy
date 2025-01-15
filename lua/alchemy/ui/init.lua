@@ -1,31 +1,20 @@
+local Config = require("alchemy.config")
+
 local M = {}
 
 local function create_float(contents, opts)
 	opts = opts or {}
 
-	-- Add numbers to contents
-	local numbered_contents = {}
-	for i, line in ipairs(contents) do
-		numbered_contents[i] = string.format("%2d. %s", i, line)
-	end
-
 	-- Calculate window size
 	local width = 0
-	for _, line in ipairs(numbered_contents) do
+	for _, line in ipairs(contents) do
 		width = math.max(width, #line)
 	end
-	local height = #numbered_contents
+	local height = #contents
 
-	-- Default options for float window
-	local float_opts = {
-		relative = "cursor",
-		row = 1,
-		col = 0,
-		width = width,
-		height = height,
-		style = "minimal",
-		border = "none", -- removed borders
-	}
+	local float_opts = Config.options.ui.float_opts
+	float_opts.width = width
+	float_opts.height = height
 
 	-- Merge provided opts with defaults
 	for k, v in pairs(opts) do
@@ -34,20 +23,26 @@ local function create_float(contents, opts)
 
 	-- Create buffer and window
 	local buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_buf_set_lines(buf, 0, -1, true, numbered_contents)
+	vim.api.nvim_buf_set_lines(buf, 0, -1, true, contents)
 	local win = vim.api.nvim_open_win(buf, true, float_opts)
 
-	-- Make buffer unmodifiable
-	vim.api.nvim_buf_set_option(buf, "modifiable", false)
+	-- Buffer and Window settings
+	vim.bo[buf].bufhidden = "delete"
+	vim.bo[buf].modifiable = false
+	vim.bo[buf].buftype = "nofile"
+	vim.wo[win].nu = true
+	vim.wo[win].rnu = false
+	vim.wo[win].cul = false
+    vim.wo[win].signcolumn = "no"
 
-	-- Add number keymaps
+	-- Resize window to fit added line numbers
+	vim.api.nvim_win_set_width(win, width + 4)
+
+	-- Add number keymaps for quick line jumps
 	for i = 1, #contents do
 		vim.api.nvim_buf_set_keymap(buf, "n", tostring(i), "", {
 			callback = function()
 				vim.api.nvim_win_set_cursor(win, { i, 0 })
-				-- Simulate pressing <CR>
-				local cr_map = vim.api.nvim_buf_get_keymap(buf, "n")[1] -- assuming <CR> is first keymap
-				cr_map.callback()
 			end,
 			noremap = true,
 			silent = true,
@@ -59,19 +54,23 @@ end
 
 local function format_value(key, value)
 	if type(value) == "table" then
-		return key
+		return key .. ">"
 	else
-		return key .. ": " .. tostring(value)
+		if type(key) == "number" then
+			return tostring(value)
+		else
+			return key .. ": " .. tostring(value)
+		end
 	end
 end
 
 -- Function to handle nested selection
 
 function M.nested_select(data, callback, history, preview_win)
-    if next(data) == nil then
-        vim.notify("Nothing to select")
-        return
-    end
+	if next(data) == nil then
+		vim.notify("Nothing to select")
+		return
+	end
 	history = history or {}
 
 	-- Get keys from current level
