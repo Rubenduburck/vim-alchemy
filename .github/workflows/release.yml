@@ -50,24 +50,10 @@ jobs:
             binary_postfix: ""
             cross: true
             
-          # Linux i686 (32-bit x86)
-          - release_for: Linux-i686
-            os: ubuntu-latest
-            target: i686-unknown-linux-gnu
-            binary_postfix: ""
-            cross: true
-            
           # Windows x86_64
           - release_for: Windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
-            binary_postfix: ".exe"
-            cross: false
-            
-          # Windows i686 (32-bit)
-          - release_for: Windows-i686
-            os: windows-latest
-            target: i686-pc-windows-msvc
             binary_postfix: ".exe"
             cross: false
             
@@ -99,7 +85,17 @@ jobs:
         if: matrix.platform.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf gcc-multilib libgmp-dev
+          sudo apt-get install -y libgmp-dev
+          
+      - name: Install cross-compilation dependencies (aarch64)
+        if: matrix.platform.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          
+      - name: Install cross-compilation dependencies (armv7)
+        if: matrix.platform.target == 'armv7-unknown-linux-gnueabihf'
+        run: |
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
           
       - name: Install dependencies (macOS)
         if: matrix.platform.os == 'macos-latest'
@@ -164,7 +160,7 @@ jobs:
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Create a combined checksums file
+
   checksums:
     needs: release
     runs-on: ubuntu-latest
@@ -182,5 +178,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: SHA256SUMS
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
