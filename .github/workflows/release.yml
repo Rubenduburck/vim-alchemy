@@ -21,9 +21,9 @@ env:
   BINARY_NAME: vim-alchemy
 
 jobs:
-  release:
+  release-linux:
     name: Release - ${{ matrix.platform.release_for }}
-    runs-on: ${{ matrix.platform.os }}
+    runs-on: ubuntu-latest
     
     strategy:
       fail-fast: false
@@ -31,45 +31,21 @@ jobs:
         platform:
           # Linux x86_64
           - release_for: Linux-x86_64
-            os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             binary_postfix: ""
             cross: false
             
           # Linux aarch64 (ARM64)
           - release_for: Linux-aarch64
-            os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             binary_postfix: ""
             cross: true
             
           # Linux armv7 (32-bit ARM)
           - release_for: Linux-armv7
-            os: ubuntu-latest
             target: armv7-unknown-linux-gnueabihf
             binary_postfix: ""
             cross: true
-            
-          # Windows x86_64
-          - release_for: Windows-x86_64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            binary_postfix: ".exe"
-            cross: false
-            
-          # macOS x86_64
-          - release_for: macOS-x86_64
-            os: macos-latest
-            target: x86_64-apple-darwin
-            binary_postfix: ""
-            cross: false
-            
-          # macOS aarch64 (Apple Silicon)
-          - release_for: macOS-aarch64
-            os: macos-latest
-            target: aarch64-apple-darwin
-            binary_postfix: ""
-            cross: false
 
     steps:
       - uses: actions/checkout@v3
@@ -81,8 +57,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           override: true
       
-      - name: Install dependencies (Ubuntu)
-        if: matrix.platform.os == 'ubuntu-latest'
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgmp-dev
@@ -96,11 +71,6 @@ jobs:
         if: matrix.platform.target == 'armv7-unknown-linux-gnueabihf'
         run: |
           sudo apt-get install -y gcc-arm-linux-gnueabihf
-          
-      - name: Install dependencies (macOS)
-        if: matrix.platform.os == 'macos-latest'
-        run: |
-          brew install gmp
           
       - name: Install cross-compilation tool
         if: matrix.platform.cross
@@ -134,21 +104,13 @@ jobs:
           
           # Create archive
           cd release
-          if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
-            7z a -tzip ../${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.zip *
-          else
-            tar -czf ../${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.tar.gz *
-          fi
+          tar -czf ../${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.tar.gz *
           cd ..
           
       - name: Generate SHA-256 checksums
         shell: bash
         run: |
-          if [ "${{ matrix.platform.os }}" = "windows-latest" ]; then
-            sha256sum ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.zip > ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.sha256
-          else
-            sha256sum ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.tar.gz > ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.sha256
-          fi
+          sha256sum ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.tar.gz > ${{ env.BINARY_NAME }}-${{ matrix.platform.release_for }}.sha256
           
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -162,7 +124,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   checksums:
-    needs: release
+    needs: release-linux
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
