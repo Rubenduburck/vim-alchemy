@@ -9,6 +9,7 @@ pub struct BaseEncoding {
 
 impl std::fmt::Display for BaseEncoding {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: Add special display for some cases
         write!(f, "base{}", self.base)
     }
 }

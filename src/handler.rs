@@ -337,9 +337,9 @@ impl Handler {
         input: &str,
     ) -> Result<Value, Error> {
         tracing::info!("Classify and convert");
-        let input_encoding = output_encoding.iter().map(Encoding::from).collect();
+        let output_encoding = output_encoding.iter().map(Encoding::from).collect();
         self.client
-            .classify_and_convert(input_encoding, input)
+            .classify_and_convert(output_encoding, input)
             .map(|output| {
                 Value::Map(
                     output

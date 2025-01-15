@@ -28,7 +28,7 @@ function M.convert(args, opts)
 
 		-- Convert
 		if params.output_encoding == "select" then
-			params.output_encoding = Config.options.encodings
+			params.output_encoding = Config.options.output_encodings
 		end
 
 		local result = Rpc.convert(params)
@@ -64,7 +64,7 @@ function M.classify_and_convert(args, opts)
 	end
 
     if params.output_encoding == "select" then
-        params.output_encoding = Config.options.encodings
+        params.output_encoding = Config.options.output_encodings
     end
 
 	local result = Rpc.classify_and_convert(params)

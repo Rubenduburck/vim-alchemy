@@ -19,11 +19,11 @@ impl TextEncoding {
     pub fn encode(&self, v: &Decoded) -> Result<String, Error> {
         match self {
             TextEncoding::Utf(8) | TextEncoding::Ascii => {
-                Ok(String::from_utf8_lossy(&v.to_le_bytes()).to_string())
+                Ok(String::from_utf8_lossy(&v.to_be_bytes()).to_string())
             }
             TextEncoding::Utf(16) => {
                 let utf_16_bytes: Vec<u16> = v
-                    .to_le_bytes()
+                    .to_be_bytes()
                     .chunks(2)
                     .map(|chunk| {
                         chunk
@@ -49,14 +49,14 @@ mod tests {
     #[test]
     fn test_encode_ascii() {
         let text_encoding = TextEncoding::Ascii;
-        let decoded = Decoded::Bytes(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+        let decoded = Decoded::Bytes(vec![0x6f, 0x6c, 0x6c, 0x65, 0x48]);
         assert_eq!(text_encoding.encode(&decoded).unwrap(), "Hello");
     }
 
     #[test]
     fn test_encode_utf8() {
         let text_encoding = TextEncoding::Utf(8);
-        let decoded = Decoded::Bytes(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+        let decoded = Decoded::Bytes(vec![0x6f, 0x6c, 0x6c, 0x65, 0x48]);
         assert_eq!(text_encoding.encode(&decoded).unwrap(), "Hello");
     }
 }

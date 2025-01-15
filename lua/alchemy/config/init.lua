@@ -17,20 +17,34 @@ function M.defaults()
 			"keccak512",
 			"blake2b",
 		},
-		encodings = {
+		input_encodings = {
 			"int",
 			"hex",
+            "bin",
             "base58",
 			"base64",
 			"utf8",
 			"utf16",
 			"ascii",
 		},
+        output_encodings = {
+            "int",
+            "hex",
+            "bin",
+            "bytes",
+            "[int]",
+            "base58",
+            "base64",
+            "utf8",
+            "utf16",
+            "ascii",
+        },
 		commands = {
 			classify = {
 				input_encoding = "auto",
 			},
 			convert = {
+                input_encoding = "select",
 				output_encoding = "select",
 			},
             hash = {
