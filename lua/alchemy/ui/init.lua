@@ -31,7 +31,6 @@ local function create_float(contents, opts)
 			line = line:gsub("\n", "\\n")
 				:gsub("\r", "\\r")
 				:gsub("\t", "\\t")
-				:gsub("\0", "\\0")
 		end
 		table.insert(escaped_contents, tostring(line))
 	end
