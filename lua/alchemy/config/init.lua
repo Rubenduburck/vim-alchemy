@@ -6,7 +6,7 @@ function M.defaults()
 	---@class AlchemyConfig
 	local defaults = {
 		rpc = {
-			bin = dir .. "../../../target/debug/vim-alchemy",
+			bin = dir .. "../../../target/release/vim-alchemy",
 		},
 		hashers = {
 			"md5",
