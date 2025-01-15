@@ -3,7 +3,7 @@ local M = {}
 
 function M.defaults()
 	local dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
-	local bin = dir .. "/../../../bin/alchemy"
+	local bin = dir .. "/../../../bin/vim-alchemy"
 	---@class AlchemyConfig
 	local defaults = {
 		rpc = {
