@@ -92,7 +92,7 @@ function M.setup()
 	local config = {
 		config = {
 			classifier = {
-				available_encodings = Config.options.encodings,
+				available_encodings = Config.options.input_encodings,
 			},
 		},
 	}
