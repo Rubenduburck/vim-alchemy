@@ -14,6 +14,7 @@ Convert data, hash stuff, reverse arrays, pad bytes, etc.
 {
     "rubenduburck/vim-alchemy",
     event = "VeryLazy",
+    build = "make",
     opts = {},
 }
 ```
