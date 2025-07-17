@@ -152,13 +152,40 @@ function M.convert(text, input_encoding, output_encoding)
 
 	table.insert(args, text)
 
-	return M.execute_cli(args, false) -- Convert returns plain text for single conversions
+	-- Try to parse as JSON first (for current CLI version)
+	local ok, result = pcall(M.execute_cli, args, true)
+	if ok and type(result) == "table" then
+		-- Extract the converted value from JSON
+		for _, conversions in pairs(result) do
+			if conversions[output_encoding] then
+				return conversions[output_encoding].output
+			end
+		end
+		error("No conversion result found in JSON")
+	else
+		-- Fall back to plain text (for future CLI version)
+		return M.execute_cli(args, false)
+	end
 end
 
 -- Auto-classify and convert (no input encoding specified)
 function M.classify_and_convert(text, output_encoding)
 	local args = { "convert", "-o", output_encoding, text }
-	return M.execute_cli(args, false) -- Convert returns plain text for single conversions
+	
+	-- Try to parse as JSON first (for current CLI version)
+	local ok, result = pcall(M.execute_cli, args, true)
+	if ok and type(result) == "table" then
+		-- Extract the converted value from JSON
+		for _, conversions in pairs(result) do
+			if conversions[output_encoding] then
+				return conversions[output_encoding].output
+			end
+		end
+		error("No conversion result found in JSON")
+	else
+		-- Fall back to plain text (for future CLI version)
+		return M.execute_cli(args, false)
+	end
 end
 
 return M
