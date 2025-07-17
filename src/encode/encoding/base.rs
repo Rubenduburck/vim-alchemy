@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use super::{
     super::{decoding::Decoded, error::Error},
     Encoding,
@@ -84,7 +85,7 @@ impl BaseEncoding {
     }
 
     fn encode_base_64(input: &Decoded) -> Result<String, Error> {
-        Ok(Self::BASE_64_ENGINE.encode(&input.to_be_bytes()))
+        Ok(Self::BASE_64_ENGINE.encode(input.to_be_bytes()))
     }
 
     fn base_n_pad_count(base: i32, target_byte_count: usize) -> usize {
@@ -103,7 +104,7 @@ impl BaseEncoding {
                 return s;
             }
             let mut result = String::with_capacity(target_str_len);
-            result.extend(std::iter::repeat(zero_char).take(padding_count));
+            result.extend(std::iter::repeat_n(zero_char, padding_count));
             result.push_str(&s);
             result
         }

@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use sha3::{digest::DynDigest, Digest};
 
 use super::decoding::Decoded;

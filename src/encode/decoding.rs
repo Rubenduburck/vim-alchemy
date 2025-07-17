@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use base64::{
     alphabet,
     engine::{self, general_purpose},
@@ -231,7 +232,7 @@ impl Decoded {
                 }
                 let mut result = Vec::with_capacity(padding);
                 let padding_needed = padding - len;
-                result.extend(std::iter::repeat(Decoded::Bytes(vec![0])).take(padding_needed));
+                result.extend(std::iter::repeat_n(Decoded::Bytes(vec![0]), padding_needed));
                 result.extend_from_slice(a);
                 Self::Array(result)
             },
@@ -242,7 +243,7 @@ impl Decoded {
                 }
                 let mut result = Vec::with_capacity(padding);
                 let padding_needed = padding - len;
-                result.extend(std::iter::repeat(0).take(padding_needed));
+                result.extend(std::iter::repeat_n(0, padding_needed));
                 result.extend_from_slice(b);
                 Self::Bytes(result)
             },
@@ -259,7 +260,7 @@ impl Decoded {
                 let mut result = Vec::with_capacity(padding);
                 result.extend_from_slice(a);
                 let padding_needed = padding - len;
-                result.extend(std::iter::repeat(Decoded::Bytes(vec![0])).take(padding_needed));
+                result.extend(std::iter::repeat_n(Decoded::Bytes(vec![0]), padding_needed));
                 Self::Array(result)
             },
             Self::Bytes(b) => {
@@ -270,7 +271,7 @@ impl Decoded {
                 let mut result = Vec::with_capacity(padding);
                 result.extend_from_slice(b);
                 let padding_needed = padding - len;
-                result.extend(std::iter::repeat(0).take(padding_needed));
+                result.extend(std::iter::repeat_n(0, padding_needed));
                 Self::Bytes(result)
             },
         }

@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use super::{decoding::Decoded, error::Error, hashing::Hasher, types::Separator};
 
 pub mod base;

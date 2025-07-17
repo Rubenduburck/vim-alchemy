@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use std::{fs::OpenOptions, sync::Arc};
 use tracing_subscriber::{filter, prelude::*};
 
