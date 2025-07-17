@@ -1,6 +1,6 @@
 use clap::Parser;
 use std::collections::HashMap;
-use alchemy::cli::{Cli, Commands, ConversionResult, HashResult, Response};
+use alchemy::cli::{Cli, Commands, ConversionResult, HashResult, Response, ClassificationResult, ConversionResponse, HashResponse};
 use alchemy::client::Client;
 use alchemy::encode::encoding::Encoding;
 use alchemy::error::Error;
@@ -8,86 +8,146 @@ use alchemy::error::Error;
 fn main() {
     let cli = Cli::parse();
     let client = Client::new();
+    let list_mode = cli.list;
     
     let result = match cli.command {
         Commands::Classify { input } => {
             let mut classifications = client.classify(&input);
             classifications.retain(|c| !c.is_empty());
-            classifications.sort();
-            let classification_strings: Vec<String> = classifications
-                .iter()
-                .map(|c| c.to_string())
-                .collect();
-            Ok(Response::Classifications(classification_strings))
+            classifications.sort(); // Sorts by score (ascending) then by encoding
+            
+            if list_mode {
+                // Return all classifications with scores
+                let results: Vec<ClassificationResult> = classifications
+                    .iter()
+                    .map(|c| ClassificationResult {
+                        encoding: c.encoding().to_string(),
+                        score: c.score(),
+                    })
+                    .collect();
+                Ok(Response::Classifications(results))
+            } else {
+                // Return only the best match (lowest score)
+                if let Some(best) = classifications.first() {
+                    Ok(Response::String(best.encoding().to_string()))
+                } else {
+                    Ok(Response::String("Empty".to_string()))
+                }
+            }
         }
         Commands::Convert {
             input_encoding,
             output_encoding,
             input,
         } => {
-            // If no input encoding specified, classify first
-            let encodings = match input_encoding {
-                Some(encodings) => encodings,
+            let output_encoding = output_encoding.unwrap_or_default();
+            let was_input_encoding_none = input_encoding.is_none();
+            
+            // Determine input encodings
+            let (encodings, classifications) = match input_encoding {
+                Some(encodings) => (encodings, None),
                 None => {
                     let mut classifications = client.classify(&input);
                     classifications.retain(|c| !c.is_empty());
-                    classifications.into_iter().map(|c| c.to_string()).collect()
+                    classifications.sort();
+                    let encoding_strings: Vec<String> = classifications.iter().map(|c| c.encoding().to_string()).collect();
+                    (encoding_strings, Some(classifications))
                 }
             };
             
-            // For simple case: single input, single output encoding
-            if encodings.len() == 1 && output_encoding.len() == 1 {
-                let input_enc = &encodings[0];
-                let output_enc = &output_encoding[0];
+            // Handle special cases
+            if was_input_encoding_none && output_encoding.is_empty() {
+                // No input and no output encoding provided: return all encodings with scores and all decodings
+                let classification_results: Vec<ClassificationResult> = classifications.unwrap()
+                    .iter()
+                    .map(|c| ClassificationResult {
+                        encoding: c.encoding().to_string(),
+                        score: c.score(),
+                    })
+                    .collect();
                 
-                match client.decode(&Encoding::from(input_enc), &input) {
-                    Ok(decoded) => {
-                        match client.encode(&Encoding::from(output_enc), &decoded) {
-                            Ok(encoded) => Ok(Response::String(encoded)),
-                            Err(e) => Err(Error::from(e)),
+                // Get all possible decodings
+                let mut decodings: HashMap<String, Vec<String>> = HashMap::new();
+                for encoding in &encodings {
+                    if let Ok(decoded) = client.decode(&Encoding::from(encoding), &input) {
+                        decodings.insert(encoding.clone(), vec![decoded.to_string()]);
+                    }
+                }
+                
+                Ok(Response::Conversions(ConversionResponse::Full {
+                    encodings: classification_results,
+                    decodings,
+                }))
+            } else if output_encoding.is_empty() {
+                // No output encoding provided: return list of possible decodings
+                let mut decodings: HashMap<String, Vec<String>> = HashMap::new();
+                for encoding in &encodings {
+                    if let Ok(decoded) = client.decode(&Encoding::from(encoding), &input) {
+                        decodings.insert(encoding.clone(), vec![decoded.to_string()]);
+                    }
+                }
+                Ok(Response::Json(serde_json::to_value(decodings).unwrap()))
+            } else {
+                // Normal conversion with output encodings specified
+                if !list_mode && output_encoding.len() == 1 {
+                    // Non-list mode with single output: use best input encoding
+                    let output_enc = &output_encoding[0];
+                    
+                    // Try each encoding in order (sorted by score) and use the first successful one
+                    let mut result_string = None;
+                    for encoding in &encodings {
+                        if let Ok(decoded) = client.decode(&Encoding::from(encoding), &input) {
+                            if let Ok(encoded) = client.encode(&Encoding::from(output_enc), &decoded) {
+                                result_string = Some(encoded);
+                                break;
+                            }
                         }
                     }
-                    Err(e) => Err(Error::from(e)),
+                    
+                    match result_string {
+                        Some(encoded) => Ok(Response::String(encoded)),
+                        None => Err(Error::Encode(alchemy::encode::error::Error::UnsupportedEncoding)),
+                    }
+                } else {
+                    // Multiple encodings or list mode: return full JSON structure
+                    let result = encodings
+                        .iter()
+                        .flat_map(|encoding| {
+                            client
+                                .decode(&Encoding::from(encoding), &input)
+                                .ok()
+                                .map(|decoded| {
+                                    let conversions = output_encoding
+                                        .iter()
+                                        .flat_map(|output_encoding| {
+                                            client
+                                                .encode(&Encoding::from(output_encoding), &decoded)
+                                                .ok()
+                                                .map(|encoded| {
+                                                    (
+                                                        output_encoding.clone(),
+                                                        ConversionResult {
+                                                            input: decoded.to_string(),
+                                                            output: encoded,
+                                                        },
+                                                    )
+                                                })
+                                        })
+                                        .collect::<HashMap<String, ConversionResult>>();
+                                    (encoding.clone(), conversions)
+                                })
+                        })
+                        .collect::<HashMap<String, HashMap<String, ConversionResult>>>();
+                    Ok(Response::Conversions(ConversionResponse::Regular(result)))
                 }
-            } else {
-                // Multiple encodings: return full JSON structure
-                let result = encodings
-                    .iter()
-                    .flat_map(|encoding| {
-                        client
-                            .decode(&Encoding::from(encoding), &input)
-                            .ok()
-                            .map(|decoded| {
-                                let conversions = output_encoding
-                                    .iter()
-                                    .flat_map(|output_encoding| {
-                                        client
-                                            .encode(&Encoding::from(output_encoding), &decoded)
-                                            .ok()
-                                            .map(|encoded| {
-                                                (
-                                                    output_encoding.clone(),
-                                                    ConversionResult {
-                                                        input: decoded.to_string(),
-                                                        output: encoded,
-                                                    },
-                                                )
-                                            })
-                                    })
-                                    .collect::<HashMap<String, ConversionResult>>();
-                                (encoding.clone(), conversions)
-                            })
-                    })
-                    .collect::<HashMap<String, HashMap<String, ConversionResult>>>();
-                Ok(Response::Conversions(result))
             }
         }
         Commands::ClassifyAndConvert {
             output_encoding,
             input,
         } => {
-            // If single output encoding, return just the string
-            if output_encoding.len() == 1 {
+            if !list_mode && output_encoding.len() == 1 {
+                // Single output encoding in non-list mode: return just the string
                 let output_enc = &output_encoding[0];
                 let output_encodings = vec![Encoding::from(output_enc)];
                 match client.classify_and_convert(output_encodings, &input) {
@@ -96,16 +156,16 @@ fn main() {
                         if let Some(value) = result.get(output_enc) {
                             Ok(Response::String(value.clone()))
                         } else {
-                            Err(Error::Encode(crate::encode::error::Error::InvalidEncoding("No conversion result found".to_string())))
+                            Err(Error::Encode(alchemy::encode::error::Error::UnsupportedEncoding))
                         }
                     }
                     Err(e) => Err(Error::from(e)),
                 }
             } else {
-                // Multiple output encodings: return full structure
+                // Multiple output encodings or list mode: return full structure
                 let output_encodings = output_encoding.iter().map(Encoding::from).collect();
                 match client.classify_and_convert(output_encodings, &input) {
-                    Ok(output) => Ok(Response::ClassifyAndConvert(output)),
+                    Ok(output) => Ok(Response::Json(serde_json::to_value(output).unwrap())),
                     Err(e) => Err(Error::from(e)),
                 }
             }
@@ -155,37 +215,60 @@ fn main() {
             input_encoding,
             input,
         } => {
-            let results = input_encoding
-                .iter()
-                .flat_map(|encoding| {
-                    let values = algo
-                        .iter()
-                        .flat_map(|algo| {
-                            client
-                                .hash(algo, &input, Encoding::from(encoding))
-                                .ok()
-                                .map(|output| {
-                                    (
-                                        algo.clone(),
-                                        HashResult {
-                                            output: output.to_string(),
-                                        },
-                                    )
-                                })
-                        })
-                        .collect::<HashMap<String, HashResult>>();
-                    if values.is_empty() {
-                        None
-                    } else {
-                        Some((encoding.clone(), values))
-                    }
-                })
-                .collect::<HashMap<String, HashMap<String, HashResult>>>();
-            Ok(Response::Hash(results))
+            if !list_mode && algo.len() == 1 && input_encoding.len() == 1 {
+                // Single algorithm, single encoding, non-list mode: return just the hash
+                let algo_name = &algo[0];
+                let encoding = &input_encoding[0];
+                match client.hash(algo_name, &input, Encoding::from(encoding)) {
+                    Ok(hash) => Ok(Response::String(hash.to_string())),
+                    Err(e) => Err(Error::from(e)),
+                }
+            } else {
+                // Multiple algorithms/encodings or list mode: return full structure
+                let results = input_encoding
+                    .iter()
+                    .flat_map(|encoding| {
+                        let values = algo
+                            .iter()
+                            .flat_map(|algo| {
+                                client
+                                    .hash(algo, &input, Encoding::from(encoding))
+                                    .ok()
+                                    .map(|output| {
+                                        (
+                                            algo.clone(),
+                                            HashResult {
+                                                output: output.to_string(),
+                                            },
+                                        )
+                                    })
+                            })
+                            .collect::<HashMap<String, HashResult>>();
+                        if values.is_empty() {
+                            None
+                        } else {
+                            Some((encoding.clone(), values))
+                        }
+                    })
+                    .collect::<HashMap<String, HashMap<String, HashResult>>>();
+                Ok(Response::Hash(HashResponse::Multiple(results)))
+            }
         }
         Commands::ClassifyAndHash { algo, input } => {
-            match client.classify_and_hash(algo, &input) {
-                Ok(output) => Ok(Response::ClassifyAndHash(output)),
+            match client.classify_and_hash(algo.clone(), &input) {
+                Ok(output) => {
+                    if !list_mode && algo.len() == 1 {
+                        // Single algorithm in non-list mode: return just the hash
+                        if let Some(hash) = output.get(&algo[0]) {
+                            Ok(Response::String(hash.clone()))
+                        } else {
+                            Err(Error::Encode(alchemy::encode::error::Error::UnsupportedHash))
+                        }
+                    } else {
+                        // Multiple algorithms or list mode: return full structure
+                        Ok(Response::Json(serde_json::to_value(output).unwrap()))
+                    }
+                }
                 Err(e) => Err(e),
             }
         }
@@ -195,7 +278,18 @@ fn main() {
         Ok(response) => {
             match response {
                 Response::String(s) => println!("{}", s),
-                _ => println!("{}", serde_json::to_string(&response).unwrap()),
+                Response::Classifications(classifications) => {
+                    println!("{}", serde_json::to_string(&classifications).unwrap())
+                }
+                Response::Conversions(conversions) => {
+                    println!("{}", serde_json::to_string(&conversions).unwrap())
+                }
+                Response::Hash(hash) => {
+                    println!("{}", serde_json::to_string(&hash).unwrap())
+                }
+                Response::Json(json) => {
+                    println!("{}", serde_json::to_string(&json).unwrap())
+                }
             }
         }
         Err(e) => {

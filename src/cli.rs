@@ -6,6 +6,10 @@ use serde::{Deserialize, Serialize};
 #[command(about = "A CLI tool for encoding, decoding, and data transformation")]
 #[command(version)]
 pub struct Cli {
+    /// Return all results in JSON format with scores
+    #[arg(short, long, global = true)]
+    pub list: bool,
+    
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -22,9 +26,9 @@ pub enum Commands {
         /// Input encoding(s) - if not specified, will auto-classify
         #[arg(short, long, value_delimiter = ',')]
         input_encoding: Option<Vec<String>>,
-        /// Output encoding(s) 
+        /// Output encoding(s) - if not specified, will return all possible decodings
         #[arg(short, long, value_delimiter = ',')]
-        output_encoding: Vec<String>,
+        output_encoding: Option<Vec<String>>,
         /// The input text
         input: String,
     },
@@ -124,12 +128,43 @@ pub enum Commands {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Response {
-    Classifications(Vec<String>),
-    Conversions(std::collections::HashMap<String, std::collections::HashMap<String, ConversionResult>>),
-    ClassifyAndConvert(std::collections::HashMap<String, String>),
+    // For single string outputs (non-list mode)
     String(String),
-    Hash(std::collections::HashMap<String, std::collections::HashMap<String, HashResult>>),
-    ClassifyAndHash(std::collections::HashMap<String, String>),
+    // For classify with list mode
+    Classifications(Vec<ClassificationResult>),
+    // For convert operations
+    Conversions(ConversionResponse),
+    // For hash operations
+    Hash(HashResponse),
+    // Generic JSON for other list outputs
+    Json(serde_json::Value),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClassificationResult {
+    pub encoding: String,
+    pub score: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ConversionResponse {
+    // For when we have all encodings and decodings
+    Full {
+        encodings: Vec<ClassificationResult>,
+        decodings: std::collections::HashMap<String, Vec<String>>,
+    },
+    // For regular conversions
+    Regular(std::collections::HashMap<String, std::collections::HashMap<String, ConversionResult>>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum HashResponse {
+    // Single hash result
+    Single(String),
+    // Multiple hash results
+    Multiple(std::collections::HashMap<String, std::collections::HashMap<String, HashResult>>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
