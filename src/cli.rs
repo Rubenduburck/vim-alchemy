@@ -2,7 +2,6 @@
 use crate::commands::SubCommand as _;
 use crate::commands::{
     array::ArrayCommand, classify::ClassifyCommand,
-    classify_and_convert::ClassifyAndConvertCommand, classify_and_hash::ClassifyAndHashCommand,
     convert::ConvertCommand, generate::GenerateCommand,
     hash::HashCommand, pad::Pad, random::Random,
 };
@@ -34,12 +33,10 @@ impl Cli {
             Commands::Array(cmd) => cmd.run(list_mode, input),
             Commands::Classify(cmd) => cmd.run(list_mode, input),
             Commands::Convert(cmd) => cmd.run(list_mode, input),
-            Commands::ClassifyAndConvert(cmd) => cmd.run(list_mode, input),
             Commands::Generate(cmd) => cmd.run(list_mode, input),
             Commands::Random(cmd) => cmd.run(list_mode, input),
             Commands::Pad(cmd) => cmd.run(list_mode, input),
             Commands::Hash(cmd) => cmd.run(list_mode, input),
-            Commands::ClassifyAndHash(cmd) => cmd.run(list_mode, input),
         }
     }
 }
@@ -50,19 +47,15 @@ pub enum Commands {
     Array(ArrayCommand),
     /// Classify input encoding
     Classify(ClassifyCommand),
-    /// Convert between encodings
+    /// Convert between encodings (auto-classifies if input encoding not specified)
     Convert(ConvertCommand),
-    /// Classify and convert in one step
-    ClassifyAndConvert(ClassifyAndConvertCommand),
     /// Generate random data
     Generate(GenerateCommand),
     /// Generate random data
     Random(Random),
     /// Pad data
     Pad(Pad),
-    /// Hash data
+    /// Hash data (auto-classifies if input encoding not specified)
     Hash(HashCommand),
-    /// Classify and hash in one step
-    ClassifyAndHash(ClassifyAndHashCommand),
 }
 

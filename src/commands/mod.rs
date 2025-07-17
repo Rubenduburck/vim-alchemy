@@ -1,7 +1,5 @@
 pub mod array;
 pub mod classify;
-pub mod classify_and_convert;
-pub mod classify_and_hash;
 pub mod convert;
 pub mod generate;
 pub mod hash;

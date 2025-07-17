@@ -11,9 +11,9 @@ pub struct HashCommand {
     /// Hash algorithm(s)
     #[arg(short, long, value_delimiter = ',')]
     pub algo: Vec<String>,
-    /// Input encoding(s)
+    /// Input encoding(s) - if not specified, will auto-classify
     #[arg(short, long, value_delimiter = ',')]
-    pub input_encoding: Vec<String>,
+    pub input_encoding: Option<Vec<String>>,
 }
 
 impl SubCommand for HashCommand {
@@ -24,16 +24,31 @@ impl SubCommand for HashCommand {
         };
         let client = Client::new();
         
-        if !list_mode && self.algo.len() == 1 && self.input_encoding.len() == 1 {
-            // Single algorithm, single encoding, non-list mode: return just the hash
+        // Determine input encodings
+        let encodings = match &self.input_encoding {
+            Some(encodings) => encodings.clone(),
+            None => {
+                // Auto-classify if no input encoding provided
+                let mut classifications = client.classify(input);
+                classifications.retain(|c| !c.is_empty());
+                classifications.sort();
+                classifications
+                    .iter()
+                    .map(|c| c.encoding().to_string())
+                    .collect()
+            }
+        };
+        
+        if !list_mode && self.algo.len() == 1 {
+            // Single algorithm, non-list mode: return just the hash using best encoding
             let algo_name = &self.algo[0];
-            let encoding = &self.input_encoding[0];
+            let encoding = &encodings[0]; // Use the best encoding (first in sorted list)
             client.hash(algo_name, input, Encoding::from(encoding))
                 .map(|hash| hash.to_string())
                 .into()
         } else {
             // Multiple algorithms/encodings or list mode: return full structure
-            let results = self.input_encoding
+            let results = encodings
                 .iter()
                 .flat_map(|encoding| {
                     let values = self.algo

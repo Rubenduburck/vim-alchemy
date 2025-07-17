@@ -73,10 +73,10 @@ fn test_convert_multiple_outputs() {
 }
 
 #[test]
-fn test_classify_and_convert() {
+fn test_convert_with_auto_classify() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(["classify-and-convert", "-o", "base64", "0x1234"])
+        .args(["convert", "-o", "base64", "0x1234"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -204,10 +204,10 @@ fn test_pad_right() {
 }
 
 #[test]
-fn test_classify_and_hash() {
+fn test_hash_with_auto_classify() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(["classify-and-hash", "-a", "sha256", "Hello World"])
+        .args(["hash", "-a", "sha256", "Hello World"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
