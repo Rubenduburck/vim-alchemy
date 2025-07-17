@@ -4,6 +4,7 @@ use value::Value;
 pub mod classify;
 pub mod cli;
 pub mod client;
+pub mod commands;
 pub mod encode;
 pub mod error;
 pub mod logging;

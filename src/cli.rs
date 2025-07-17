@@ -1,5 +1,20 @@
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
+use crate::commands::{
+    classify::ClassifyCommand,
+    convert::ConvertCommand,
+    classify_and_convert::ClassifyAndConvertCommand,
+    flatten_array::FlattenArrayCommand,
+    chunk_array::ChunkArrayCommand,
+    reverse_array::ReverseArrayCommand,
+    rotate_array::RotateArrayCommand,
+    generate::GenerateCommand,
+    random::RandomCommand,
+    pad_left::PadLeftCommand,
+    pad_right::PadRightCommand,
+    hash::HashCommand,
+    classify_and_hash::ClassifyAndHashCommand,
+};
 
 #[derive(Parser)]
 #[command(name = "alchemy")]
@@ -16,127 +31,29 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Classify the input encoding
-    Classify {
-        /// The input text to classify
-        input: String,
-    },
-    /// Convert between encodings (auto-classifies if input encoding not specified)
-    Convert {
-        /// Input encoding(s) - if not specified, will auto-classify
-        #[arg(short, long, value_delimiter = ',')]
-        input_encoding: Option<Vec<String>>,
-        /// Output encoding(s) - if not specified, will return all possible decodings
-        #[arg(short, long, value_delimiter = ',')]
-        output_encoding: Option<Vec<String>>,
-        /// The input text
-        input: String,
-    },
-    /// Classify input and convert to specified encodings
-    ClassifyAndConvert {
-        /// Output encoding(s)
-        #[arg(short, long, value_delimiter = ',')]
-        output_encoding: Vec<String>,
-        /// The input text
-        input: String,
-    },
-    /// Flatten a nested array
-    FlattenArray {
-        /// The array to flatten
-        input: String,
-    },
-    /// Chunk an array into groups
-    ChunkArray {
-        /// Number of chunks to create
-        #[arg(short, long)]
-        chunks: u64,
-        /// The array to chunk
-        input: String,
-    },
-    /// Reverse an array
-    ReverseArray {
-        /// Depth of reversal
-        #[arg(short, long, default_value = "1")]
-        depth: u64,
-        /// The array to reverse
-        input: String,
-    },
-    /// Rotate an array
-    RotateArray {
-        /// Rotation amount (negative for left, positive for right)
-        #[arg(short, long)]
-        rotation: i64,
-        /// The array to rotate
-        input: String,
-    },
-    /// Generate empty data in specified encoding
-    Generate {
-        /// Encoding type
-        #[arg(short, long)]
-        encoding: String,
-        /// Number of bytes
-        #[arg(short, long)]
-        bytes: u64,
-    },
-    /// Generate random data in specified encoding
-    Random {
-        /// Encoding type
-        #[arg(short, long)]
-        encoding: String,
-        /// Number of bytes
-        #[arg(short, long)]
-        bytes: u64,
-    },
-    /// Pad data to the left
-    PadLeft {
-        /// Padding size in bytes
-        #[arg(short, long)]
-        padding: u64,
-        /// The input to pad
-        input: String,
-    },
-    /// Pad data to the right
-    PadRight {
-        /// Padding size in bytes
-        #[arg(short, long)]
-        padding: u64,
-        /// The input to pad
-        input: String,
-    },
-    /// Hash the input using specified algorithm(s)
-    Hash {
-        /// Hash algorithm(s)
-        #[arg(short, long, value_delimiter = ',')]
-        algo: Vec<String>,
-        /// Input encoding(s)
-        #[arg(short, long, value_delimiter = ',')]
-        input_encoding: Vec<String>,
-        /// The input to hash
-        input: String,
-    },
-    /// Classify input and hash using specified algorithm(s)
-    ClassifyAndHash {
-        /// Hash algorithm(s)
-        #[arg(short, long, value_delimiter = ',')]
-        algo: Vec<String>,
-        /// The input to hash
-        input: String,
-    },
+    Classify(ClassifyCommand),
+    Convert(ConvertCommand),
+    ClassifyAndConvert(ClassifyAndConvertCommand),
+    FlattenArray(FlattenArrayCommand),
+    ChunkArray(ChunkArrayCommand),
+    ReverseArray(ReverseArrayCommand),
+    RotateArray(RotateArrayCommand),
+    Generate(GenerateCommand),
+    Random(RandomCommand),
+    PadLeft(PadLeftCommand),
+    PadRight(PadRightCommand),
+    Hash(HashCommand),
+    ClassifyAndHash(ClassifyAndHashCommand),
 }
 
 // Response types for JSON output
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Response {
-    // For single string outputs (non-list mode)
     String(String),
-    // For classify with list mode
     Classifications(Vec<ClassificationResult>),
-    // For convert operations
     Conversions(ConversionResponse),
-    // For hash operations
     Hash(HashResponse),
-    // Generic JSON for other list outputs
     Json(serde_json::Value),
 }
 
@@ -149,11 +66,9 @@ pub struct ClassificationResult {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ConversionResponse {
-    // For when no input/output encoding provided
     Full {
         encodings: Vec<EncodingWithDecodings>,
     },
-    // For regular conversions
     Regular(std::collections::HashMap<String, std::collections::HashMap<String, ConversionResult>>),
 }
 
@@ -167,9 +82,7 @@ pub struct EncodingWithDecodings {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum HashResponse {
-    // Single hash result
     Single(String),
-    // Multiple hash results
     Multiple(std::collections::HashMap<String, std::collections::HashMap<String, HashResult>>),
 }
 
