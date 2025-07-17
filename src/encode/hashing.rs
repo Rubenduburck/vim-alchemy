@@ -97,6 +97,8 @@ impl TryFrom<&str> for Hasher {
             Ok(Self::sha3(extract_bits(rest)))
         } else if let Some(rest) = s.strip_prefix(Self::SHA) {
             Ok(Self::sha2(extract_bits(rest)))
+        } else if s == "md5" {
+            Ok(Self::md5())
         } else {
             Err(Error::UnsupportedHash)
         }

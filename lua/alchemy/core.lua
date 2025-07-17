@@ -116,7 +116,28 @@ end
 function M.execute_cli(cmd_args, expect_json)
 	expect_json = expect_json == nil and true or expect_json -- Default to true
 
-	local cmd = vim.list_extend({ Config.options.cli.bin or "alchemy" }, cmd_args)
+	-- Extract the input text if it's the last argument
+	local input_text = nil
+	local args = {}
+	
+	-- Check if last arg is the input text (doesn't start with -)
+	if #cmd_args > 0 and not cmd_args[#cmd_args]:match("^%-") then
+		input_text = cmd_args[#cmd_args]
+		-- Copy all args except the last one
+		for i = 1, #cmd_args - 1 do
+			table.insert(args, cmd_args[i])
+		end
+	else
+		args = cmd_args
+	end
+
+	local cmd = vim.list_extend({ Config.options.cli.bin or "alchemy" }, args)
+	
+	-- Add input as a global parameter if we have it
+	if input_text then
+		table.insert(cmd, input_text)
+	end
+	
 	local result = vim.fn.systemlist(cmd)
 	local output = table.concat(result, "\n")
 
@@ -137,7 +158,7 @@ end
 
 -- Classify text and return all classifications
 function M.classify(text)
-	local args = { "classify", text }
+	local args = { "-l", "classify", text }
 	return M.execute_cli(args)
 end
 
@@ -170,22 +191,32 @@ end
 
 -- Auto-classify and convert (no input encoding specified)
 function M.classify_and_convert(text, output_encoding)
-	local args = { "convert", "-o", output_encoding, text }
+	-- Try simple conversion first (should auto-classify)
+	local simple_args = { "convert", "-o", output_encoding, text }
+	local ok, result = pcall(M.execute_cli, simple_args, false)
 	
-	-- Try to parse as JSON first (for current CLI version)
-	local ok, result = pcall(M.execute_cli, args, true)
+	if ok and result and result ~= "0x0" and result ~= "" then
+		return result
+	end
+	
+	-- If simple conversion failed, try with JSON format to get all classifications
+	local json_args = { "-l", "convert", "-o", output_encoding, text }
+	ok, result = pcall(M.execute_cli, json_args, true)
+	
 	if ok and type(result) == "table" then
-		-- Extract the converted value from JSON
-		for _, conversions in pairs(result) do
-			if conversions[output_encoding] then
-				return conversions[output_encoding].output
+		-- Find the best conversion result from the JSON response
+		for input_type, conversions in pairs(result) do
+			if conversions[output_encoding] and conversions[output_encoding].output then
+				local output = conversions[output_encoding].output
+				-- Skip obviously wrong results
+				if output ~= "0x0" and output ~= "" then
+					return output
+				end
 			end
 		end
-		error("No conversion result found in JSON")
-	else
-		-- Fall back to plain text (for future CLI version)
-		return M.execute_cli(args, false)
 	end
+	
+	error("No valid conversion result found")
 end
 
 return M

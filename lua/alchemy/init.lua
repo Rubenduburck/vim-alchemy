@@ -4,6 +4,7 @@
 local M = {}
 
 local Commands = require("alchemy.commands")
+local Telescope = require("alchemy.telescope")
 
 -- Setup function for configuration
 function M.setup(opts)
@@ -168,6 +169,18 @@ function M.create_commands()
 			return { "hex", "base64", "base58", "bin", "int", "utf8", "ascii" }
 		end,
 	})
+	
+	-- Random data generation command
+	vim.api.nvim_create_user_command("AlchRandom", function(cmd_opts)
+		Commands.random(cmd_opts.fargs)
+	end, {
+		nargs = "*",
+		range = true,
+		desc = "Generate random data using true randomness",
+		complete = function(_, _, _)
+			return { "hex", "base64", "base58", "bin", "int", "utf8", "ascii" }
+		end,
+	})
 end
 
 -- Create key mappings (optional, users can set these themselves)
@@ -179,51 +192,77 @@ function M.create_keymaps()
 		{ "n", "v" },
 		"<leader>alc",
 		"<cmd>AlchConvert<cr>",
-		vim.tbl_extend("force", opts, { desc = "Alchemy: Convert" })
+		vim.tbl_extend("force", opts, { desc = "🔄 Alchemy: Convert" })
 	)
 	vim.keymap.set(
 		{ "n", "v" },
 		"<leader>ale",
 		"<cmd>AlchExplore<cr>",
-		vim.tbl_extend("force", opts, { desc = "Alchemy: Explore" })
+		vim.tbl_extend("force", opts, { desc = "🔍 Alchemy: Explore" })
 	)
 	vim.keymap.set(
 		{ "n", "v" },
 		"<leader>alC",
 		"<cmd>AlchClassify<cr>",
-		vim.tbl_extend("force", opts, { desc = "Alchemy: Classify" })
+		vim.tbl_extend("force", opts, { desc = "🎯 Alchemy: Classify" })
 	)
 
-	-- Quick conversions
+	-- Quick conversions with intuitive mnemonics
 	vim.keymap.set(
 		{ "n", "v" },
 		"<leader>alh",
 		"<cmd>AlchToHex<cr>",
-		vim.tbl_extend("force", opts, { desc = "Alchemy: To Hex" })
+		vim.tbl_extend("force", opts, { desc = "🔤 Alchemy: To Hex" })
 	)
 	vim.keymap.set(
 		{ "n", "v" },
 		"<leader>ali",
 		"<cmd>AlchToInt<cr>",
-		vim.tbl_extend("force", opts, { desc = "Alchemy: To Int" })
+		vim.tbl_extend("force", opts, { desc = "🔢 Alchemy: To Int" })
 	)
 	vim.keymap.set(
 		{ "n", "v" },
 		"<leader>al6",
 		"<cmd>AlchToBase64<cr>",
-		vim.tbl_extend("force", opts, { desc = "Alchemy: To Base64" })
+		vim.tbl_extend("force", opts, { desc = "📝 Alchemy: To Base64" })
 	)
 	vim.keymap.set(
 		{ "n", "v" },
 		"<leader>al5",
 		"<cmd>AlchToBase58<cr>",
-		vim.tbl_extend("force", opts, { desc = "Alchemy: To Base58" })
+		vim.tbl_extend("force", opts, { desc = "🔠 Alchemy: To Base58" })
 	)
 	vim.keymap.set(
 		{ "n", "v" },
 		"<leader>alb",
 		"<cmd>AlchToBin<cr>",
-		vim.tbl_extend("force", opts, { desc = "Alchemy: To Binary" })
+		vim.tbl_extend("force", opts, { desc = "💾 Alchemy: To Binary" })
+	)
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>alu",
+		"<cmd>AlchToUtf8<cr>",
+		vim.tbl_extend("force", opts, { desc = "📄 Alchemy: To UTF-8" })
+	)
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>alA",
+		"<cmd>AlchToAscii<cr>",
+		vim.tbl_extend("force", opts, { desc = "🔤 Alchemy: To ASCII" })
+	)
+
+	-- Hashing operations
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>alH",
+		"<cmd>AlchHash<cr>",
+		vim.tbl_extend("force", opts, { desc = "🔐 Alchemy: Hash" })
+	)
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>al2",
+		"<cmd>AlchHash sha256<cr>",
+		vim.tbl_extend("force", opts, { desc = "🔐 Alchemy: SHA256" })
 	)
 
 	-- Array operations
@@ -231,7 +270,54 @@ function M.create_keymaps()
 		{ "n", "v" },
 		"<leader>alf",
 		"<cmd>AlchFlatten<cr>",
-		vim.tbl_extend("force", opts, { desc = "Alchemy: Flatten" })
+		vim.tbl_extend("force", opts, { desc = "📚 Alchemy: Flatten Array" })
+	)
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>alk",
+		"<cmd>AlchChunk<cr>",
+		vim.tbl_extend("force", opts, { desc = "🔪 Alchemy: Chunk Array" })
+	)
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>alr",
+		"<cmd>AlchRotate<cr>",
+		vim.tbl_extend("force", opts, { desc = "🔄 Alchemy: Rotate Array" })
+	)
+
+	-- Generate data
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>alg",
+		"<cmd>AlchGenerate<cr>",
+		vim.tbl_extend("force", opts, { desc = "🎲 Alchemy: Generate" })
+	)
+	
+	-- Generate random data
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>alR",
+		"<cmd>AlchRandom<cr>",
+		vim.tbl_extend("force", opts, { desc = "🎲 Alchemy: Random" })
+	)
+
+	-- Telescope integration (if available)
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>alt",
+		function()
+			Telescope.conversion_picker()
+		end,
+		vim.tbl_extend("force", opts, { desc = "🔭 Alchemy: Telescope Conversions" })
+	)
+	
+	vim.keymap.set(
+		{ "n", "v" },
+		"<leader>alT",
+		function()
+			Telescope.classification_picker()
+		end,
+		vim.tbl_extend("force", opts, { desc = "🔭 Alchemy: Telescope Classifications" })
 	)
 end
 

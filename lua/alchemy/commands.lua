@@ -4,26 +4,50 @@
 local M = {}
 
 local Core = require("alchemy.core")
-local Picker = require("alchemy.picker")
-local Explorer = require("alchemy.explorer")
+local UI = require("alchemy.ui")
+local Preview = require("alchemy.preview")
 
 -- Main conversion command - smart, works with visual selection or word under cursor
 function M.convert(args)
-	local output_encoding = args and args[1]
+	local text_selection = Core.get_text_selection()
 
-	if not output_encoding then
-		-- No output encoding specified, use quick convert with picker
-		Explorer.quick_convert()
+	if not text_selection.text or text_selection.text == "" then
+		UI.notify("No text to convert", vim.log.levels.WARN)
 		return
 	end
 
-	-- Output encoding specified, do direct conversion
-	Explorer.quick_convert(output_encoding)
+	local output_encoding = args and args[1]
+
+	if not output_encoding then
+		-- No output encoding specified, show conversion explorer
+		Preview.show_conversion_explorer(text_selection)
+		return
+	end
+
+	-- Output encoding specified, do direct conversion with preview
+	Preview.show_conversion_preview(text_selection, function()
+		return Core.classify_and_convert(text_selection.text, output_encoding)
+	end, {
+		title = " 🔄 Convert to " .. output_encoding .. " ",
+	})
 end
 
 -- Classification explorer - shows all classifications and conversions
 function M.explore()
-	Explorer.explore_conversions()
+	local text_selection = Core.get_text_selection()
+
+	if not text_selection.text or text_selection.text == "" then
+		UI.notify("No text to explore", vim.log.levels.WARN)
+		return
+	end
+
+	local ok, classifications = pcall(Core.classify, text_selection.text)
+	if not ok or not classifications then
+		UI.notify("Classification failed: " .. (classifications or "unknown error"), vim.log.levels.ERROR)
+		return
+	end
+
+	Preview.show_classifications(text_selection, classifications)
 end
 
 -- Classify command - just show classifications without converting
@@ -31,93 +55,67 @@ function M.classify()
 	local text_selection = Core.get_text_selection()
 
 	if not text_selection.text or text_selection.text == "" then
-		vim.notify("No text to classify", vim.log.levels.WARN)
+		UI.notify("No text to classify", vim.log.levels.WARN)
 		return
 	end
 
-	vim.notify("Classifying: " .. text_selection.text)
+	UI.notify("Classifying: " .. text_selection.text, vim.log.levels.INFO)
 
 	local ok, classifications = pcall(Core.classify, text_selection.text)
 	if not ok or not classifications then
-		vim.notify("Classification failed: " .. (classifications or "unknown error"), vim.log.levels.ERROR)
+		UI.notify("Classification failed: " .. (classifications or "unknown error"), vim.log.levels.ERROR)
 		return
 	end
 
-	-- Format and display classifications
-	local lines = { "Classifications for: " .. text_selection.text, "" }
-
-	local sorted_classifications = {}
-	for encoding, details in pairs(classifications) do
-		if type(details) == "table" and details.score ~= nil then
-			table.insert(sorted_classifications, {
-				encoding = encoding,
-				score = details.score,
-				details = details,
-			})
-		end
-	end
-
-	table.sort(sorted_classifications, function(a, b)
-		return a.score < b.score
-	end)
-
-	for _, item in ipairs(sorted_classifications) do
-		table.insert(lines, string.format("  %s (score: %d)", item.encoding, item.score))
-	end
-
-	-- Show in a floating window or as notifications
-	if #lines > 10 then
-		-- Use floating window for many results
-		local buf = vim.api.nvim_create_buf(false, true)
-		vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-
-		local width = 0
-		for _, line in ipairs(lines) do
-			width = math.max(width, #line)
-		end
-
-		vim.bo[buf].modifiable = false
-		vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<cr>", { noremap = true, silent = true })
-		vim.api.nvim_buf_set_keymap(buf, "n", "<esc>", "<cmd>close<cr>", { noremap = true, silent = true })
-	else
-		-- Use notifications for few results
-		for i = 3, #lines do -- Skip header lines
-			vim.notify(lines[i])
-		end
-	end
+	Preview.show_classifications(text_selection, classifications)
 end
 
 -- Quick conversion commands for common encodings
+local function quick_convert_to(encoding)
+	local text_selection = Core.get_text_selection()
+
+	if not text_selection.text or text_selection.text == "" then
+		UI.notify("No text to convert", vim.log.levels.WARN)
+		return
+	end
+
+	Preview.show_conversion_preview(text_selection, function()
+		return Core.classify_and_convert(text_selection.text, encoding)
+	end, {
+		title = " 🎨 Convert to " .. encoding:upper() .. " ",
+	})
+end
+
 function M.to_hex()
-	Explorer.quick_convert("hex")
+	quick_convert_to("hex")
 end
 
 function M.to_int()
-	Explorer.quick_convert("int")
+	quick_convert_to("int")
 end
 
 function M.to_base64()
-	Explorer.quick_convert("base64")
+	quick_convert_to("base64")
 end
 
 function M.to_base58()
-	Explorer.quick_convert("base58")
+	quick_convert_to("base58")
 end
 
 function M.to_bin()
-	Explorer.quick_convert("bin")
+	quick_convert_to("bin")
 end
 
 function M.to_utf8()
-	Explorer.quick_convert("utf8")
+	quick_convert_to("utf8")
 end
 
 function M.to_ascii()
-	Explorer.quick_convert("ascii")
+	quick_convert_to("ascii")
 end
 
 function M.to_bytes()
-	Explorer.quick_convert("bytes")
+	quick_convert_to("bytes")
 end
 
 -- Array manipulation commands (these work with the current text selection)
@@ -129,7 +127,7 @@ function M.flatten()
 		return
 	end
 
-	local ok, result = pcall(Core.execute_cli, { "flatten-array", text_selection.text })
+	local ok, result = pcall(Core.execute_cli, { "array", "flatten", text_selection.text }, false)
 	if ok and result then
 		Core.replace_text(text_selection, result)
 		vim.notify("Array flattened")
@@ -157,7 +155,7 @@ function M.chunk(args)
 		return
 	end
 
-	local ok, result = pcall(Core.execute_cli, { "chunk-array", "-c", tostring(chunk_size), text_selection.text })
+	local ok, result = pcall(Core.execute_cli, { "array", "chunk", "-c", tostring(chunk_size), text_selection.text }, false)
 	if ok and result then
 		Core.replace_text(text_selection, result)
 		vim.notify(string.format("Array chunked into groups of %d", chunk_size))
@@ -185,7 +183,7 @@ function M.rotate(args)
 		return
 	end
 
-	local ok, result = pcall(Core.execute_cli, { "rotate-array", "-r", tostring(rotation), text_selection.text })
+	local ok, result = pcall(Core.execute_cli, { "array", "rotate", "-r", tostring(rotation), text_selection.text }, false)
 	if ok and result then
 		Core.replace_text(text_selection, result)
 		vim.notify(string.format("Array rotated by %d", rotation))
@@ -214,7 +212,7 @@ function M.pad_left(args)
 		return
 	end
 
-	local ok, result = pcall(Core.execute_cli, { "pad-left", "-p", tostring(padding), text_selection.text })
+	local ok, result = pcall(Core.execute_cli, { "pad", "-s", "left", "-p", tostring(padding), text_selection.text }, false)
 	if ok and result then
 		Core.replace_text(text_selection, result)
 		vim.notify(string.format("Padded left to %d", padding))
@@ -242,7 +240,7 @@ function M.pad_right(args)
 		return
 	end
 
-	local ok, result = pcall(Core.execute_cli, { "pad-right", "-p", tostring(padding), text_selection.text })
+	local ok, result = pcall(Core.execute_cli, { "pad", "-s", "right", "-p", tostring(padding), text_selection.text }, false)
 	if ok and result then
 		Core.replace_text(text_selection, result)
 		vim.notify(string.format("Padded right to %d", padding))
@@ -253,59 +251,148 @@ end
 
 -- Hashing commands
 function M.hash(args)
-	local algorithm = args and args[1]
-
-	if not algorithm then
-		local algorithms = { "sha256", "sha512", "md5", "blake2", "keccak256" }
-		Picker.select_from_list(algorithms, {
-			prompt = "Select hash algorithm:",
-		}, function(selected_algorithm)
-			if selected_algorithm then
-				M.hash({ selected_algorithm })
-			end
-		end)
-		return
-	end
-
 	local text_selection = Core.get_text_selection()
 
 	if not text_selection.text or text_selection.text == "" then
-		vim.notify("No text to hash", vim.log.levels.WARN)
+		UI.notify("No text to hash", vim.log.levels.WARN)
 		return
 	end
 
-	local ok, result = pcall(Core.execute_cli, { "classify-and-hash", "-a", algorithm, text_selection.text })
-	if ok and result then
-		Core.replace_text(text_selection, result)
-		vim.notify(string.format("Hashed with %s", algorithm))
-	else
-		vim.notify("Failed to hash: " .. (result or "unknown error"), vim.log.levels.ERROR)
+	local algorithm = args and args[1]
+
+	if not algorithm then
+		local algorithms = {
+			{ name = "SHA256", type = "hash", text = "sha256" },
+			{ name = "SHA512", type = "hash", text = "sha512" },
+			{ name = "SHA3-256", type = "hash", text = "sha3256" },
+			{ name = "Blake2-256", type = "hash", text = "blake2256" },
+			{ name = "Blake2-512", type = "hash", text = "blake2512" },
+			{ name = "Keccak256", type = "hash", text = "keccak256" },
+		}
+		
+		UI.create_selector(algorithms, {
+			title = " 🔐 Select Hash Algorithm ",
+			on_select = function(selected_algorithm)
+				Preview.show_conversion_preview(text_selection, function()
+					return Core.execute_cli({ "hash", "-i", "utf8", "-a", selected_algorithm.text, text_selection.text }, false)
+				end, {
+					title = " 🔐 Hash with " .. selected_algorithm.name .. " ",
+				})
+			end,
+		})
+		return
 	end
+
+	Preview.show_conversion_preview(text_selection, function()
+		return Core.execute_cli({ "hash", "-i", "utf8", "-a", algorithm, text_selection.text }, false)
+	end, {
+		title = " 🔐 Hash with " .. algorithm:upper() .. " ",
+	})
 end
 
 -- Generate random data
 function M.generate(args)
 	local encoding = args and args[1]
-	local length = args and tonumber(args[2]) or 32
+	local length = args and tonumber(args[2])
 
-	if not encoding then
-		local encodings = { "hex", "base64", "base58", "bin", "int", "utf8", "ascii" }
-		Picker.select_from_list(encodings, {
-			prompt = "Generate random data in format:",
-		}, function(selected_encoding)
-			if selected_encoding then
-				M.generate({ selected_encoding, tostring(length) })
+	-- Step 1: Get byte length if not provided
+	if not length then
+		vim.ui.input({ prompt = "Enter byte length (default: 32): ", default = "32" }, function(input)
+			if input then
+				local bytes = tonumber(input) or 32
+				M.generate({ encoding, tostring(bytes) })
 			end
 		end)
 		return
 	end
 
-	local ok, result = pcall(Core.execute_cli, { "generate", "-e", encoding, "-b", tostring(length) })
+	-- Step 2: Select encoding if not provided
+	if not encoding then
+		local encodings = {
+			{ name = "Hex", type = "hex", text = "hex" },
+			{ name = "Base64", type = "base64", text = "base64" },
+			{ name = "Base58", type = "base58", text = "base58" },
+			{ name = "Binary", type = "bin", text = "bin" },
+			{ name = "Integer", type = "int", text = "int" },
+			{ name = "UTF-8", type = "utf8", text = "utf8" },
+			{ name = "ASCII", type = "ascii", text = "ascii" },
+		}
+		
+		UI.create_selector(encodings, {
+			title = string.format(" 🎲 Generate %d Bytes Data ", length),
+			on_select = function(selected_encoding)
+				local ok, result = pcall(Core.execute_cli, { "generate", "-e", selected_encoding.text, "-b", tostring(length) }, false)
+				if ok and result then
+					vim.api.nvim_put({ result }, "c", false, true)
+					UI.notify(string.format("Generated %d bytes of random %s data", length, selected_encoding.text), vim.log.levels.INFO)
+				else
+					UI.notify("Failed to generate: " .. (result or "unknown error"), vim.log.levels.ERROR)
+				end
+			end,
+		})
+		return
+	end
+
+	-- Step 3: Generate the data
+	local ok, result = pcall(Core.execute_cli, { "generate", "-e", encoding, "-b", tostring(length) }, false)
 	if ok and result then
 		vim.api.nvim_put({ result }, "c", false, true)
-		vim.notify(string.format("Generated %d bytes of random %s data", length, encoding))
+		UI.notify(string.format("Generated %d bytes of random %s data", length, encoding), vim.log.levels.INFO)
 	else
-		vim.notify("Failed to generate: " .. (result or "unknown error"), vim.log.levels.ERROR)
+		UI.notify("Failed to generate: " .. (result or "unknown error"), vim.log.levels.ERROR)
+	end
+end
+
+-- Generate random data using the random command
+function M.random(args)
+	local encoding = args and args[1]
+	local length = args and tonumber(args[2])
+
+	-- Step 1: Get byte length if not provided
+	if not length then
+		vim.ui.input({ prompt = "Enter byte length (default: 32): ", default = "32" }, function(input)
+			if input then
+				local bytes = tonumber(input) or 32
+				M.random({ encoding, tostring(bytes) })
+			end
+		end)
+		return
+	end
+
+	-- Step 2: Select encoding if not provided
+	if not encoding then
+		local encodings = {
+			{ name = "Hex", type = "hex", text = "hex" },
+			{ name = "Base64", type = "base64", text = "base64" },
+			{ name = "Base58", type = "base58", text = "base58" },
+			{ name = "Binary", type = "bin", text = "bin" },
+			{ name = "Integer", type = "int", text = "int" },
+			{ name = "UTF-8", type = "utf8", text = "utf8" },
+			{ name = "ASCII", type = "ascii", text = "ascii" },
+		}
+		
+		UI.create_selector(encodings, {
+			title = string.format(" 🎲 Generate %d Bytes Random Data ", length),
+			on_select = function(selected_encoding)
+				local ok, result = pcall(Core.execute_cli, { "random", "-e", selected_encoding.text, "-b", tostring(length) }, false)
+				if ok and result then
+					vim.api.nvim_put({ result }, "c", false, true)
+					UI.notify(string.format("Generated %d bytes of random %s data", length, selected_encoding.text), vim.log.levels.INFO)
+				else
+					UI.notify("Failed to generate: " .. (result or "unknown error"), vim.log.levels.ERROR)
+				end
+			end,
+		})
+		return
+	end
+
+	-- Step 3: Generate the random data
+	local ok, result = pcall(Core.execute_cli, { "random", "-e", encoding, "-b", tostring(length) }, false)
+	if ok and result then
+		vim.api.nvim_put({ result }, "c", false, true)
+		UI.notify(string.format("Generated %d bytes of random %s data", length, encoding), vim.log.levels.INFO)
+	else
+		UI.notify("Failed to generate: " .. (result or "unknown error"), vim.log.levels.ERROR)
 	end
 end
 

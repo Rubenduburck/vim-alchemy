@@ -292,21 +292,21 @@ end
 
 -- Hash text with specified algorithm
 function M.hash_text(text, algorithm)
-	local args = { "hash", algorithm, text }
-	return Core.execute_cli(args) -- Hash returns plain text
+	local args = { "hash", "-a", algorithm, text }
+	return Core.execute_cli(args, false) -- Hash returns plain text
 end
 
--- Flatten array (placeholder - would need CLI support)
+-- Flatten array
 function M.flatten_array(text)
-	local args = { "flatten", text }
-	return Core.execute_cli(args)
+	local args = { "array", "flatten", text }
+	return Core.execute_cli(args, false)
 end
 
 -- Interactive chunk array
 function M.chunk_array_interactive(text)
 	vim.ui.input({ prompt = "Chunk size: " }, function(size)
 		if size and tonumber(size) then
-			local args = { "chunk", size, text }
+			local args = { "array", "chunk", "-c", size, text }
 			local ok, result = pcall(Core.execute_cli, args, false)
 			if ok then
 				return result
@@ -320,7 +320,7 @@ end
 function M.rotate_array_interactive(text)
 	vim.ui.input({ prompt = "Rotate by: " }, function(amount)
 		if amount and tonumber(amount) then
-			local args = { "rotate", amount, text }
+			local args = { "array", "rotate", "-r", amount, text }
 			local ok, result = pcall(Core.execute_cli, args, false)
 			if ok then
 				return result
@@ -334,7 +334,7 @@ end
 function M.pad_left_interactive(text)
 	vim.ui.input({ prompt = "Pad to size: " }, function(size)
 		if size and tonumber(size) then
-			local args = { "pad-left", size, text }
+			local args = { "pad", "-s", "left", "-p", size, text }
 			local ok, result = pcall(Core.execute_cli, args, false)
 			if ok then
 				return result
@@ -348,7 +348,7 @@ end
 function M.pad_right_interactive(text)
 	vim.ui.input({ prompt = "Pad to size: " }, function(size)
 		if size and tonumber(size) then
-			local args = { "pad-right", size, text }
+			local args = { "pad", "-s", "right", "-p", size, text }
 			local ok, result = pcall(Core.execute_cli, args, false)
 			if ok then
 				return result
