@@ -1,4 +1,4 @@
-use crate::cli::{ClassificationResult, Response};
+use crate::types::{ClassificationResult, CliResult};
 use crate::client::Client;
 use crate::commands::SubCommand;
 use crate::error::Error;
@@ -6,17 +6,19 @@ use clap::Args;
 
 #[derive(Args)]
 pub struct ClassifyCommand {
-    /// The input text to classify
-    pub input: String,
 }
 
 impl SubCommand for ClassifyCommand {
-    fn run(&self, list_mode: bool) -> Result<Response, Error> {
+    fn run(&self, list_mode: bool, input: Option<&str>) -> CliResult {
+        let input = match input {
+            Some(i) => i,
+            None => return Error::MissingArgs("input".to_string()).into(),
+        };
         let client = Client::new();
-        let mut classifications = client.classify(&self.input);
+        let mut classifications = client.classify(input);
         classifications.retain(|c| !c.is_empty());
         classifications.sort(); // Sorts by score (ascending) then by encoding
-        
+
         if list_mode {
             let results: Vec<ClassificationResult> = classifications
                 .iter()
@@ -25,11 +27,12 @@ impl SubCommand for ClassifyCommand {
                     score: c.score(),
                 })
                 .collect();
-            Ok(Response::Classifications(results))
+            results.into()
         } else if let Some(best) = classifications.first() {
-            Ok(Response::String(best.encoding().to_string()))
+            best.encoding().to_string().into()
         } else {
-            Ok(Response::String("Empty".to_string()))
+            Error::Generic("No classifications found".to_string()).into()
         }
     }
 }
+

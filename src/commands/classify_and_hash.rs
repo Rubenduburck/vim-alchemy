@@ -1,4 +1,4 @@
-use crate::cli::Response;
+use crate::types::{CliResult, Response, ToResponse};
 use crate::client::Client;
 use crate::commands::SubCommand;
 use crate::error::Error;
@@ -9,29 +9,28 @@ pub struct ClassifyAndHashCommand {
     /// Hash algorithm(s)
     #[arg(short, long, value_delimiter = ',')]
     pub algo: Vec<String>,
-    /// The input to hash
-    pub input: String,
 }
 
 impl SubCommand for ClassifyAndHashCommand {
-    fn run(&self, list_mode: bool) -> Result<Response, Error> {
+    fn run(&self, list_mode: bool, input: Option<&str>) -> CliResult {
+        let input = match input {
+            Some(i) => i,
+            None => return Error::MissingArgs("input".to_string()).into(),
+        };
         let client = Client::new();
         
-        match client.classify_and_hash(self.algo.clone(), &self.input) {
-            Ok(output) => {
+        client.classify_and_hash(self.algo.clone(), input)
+            .map(|output| {
                 if !list_mode && self.algo.len() == 1 {
                     // Single algorithm in non-list mode: return just the hash
-                    if let Some(hash) = output.get(&self.algo[0]) {
-                        Ok(Response::String(hash.clone()))
-                    } else {
-                        Err(Error::Encode(crate::encode::error::Error::UnsupportedHash))
-                    }
+                    output.get(&self.algo[0])
+                        .map(|hash| Response::from(hash.clone()))
+                        .unwrap_or_else(|| Response::from("Unsupported hash algorithm"))
                 } else {
                     // Multiple algorithms or list mode: return full structure
-                    Ok(Response::Json(serde_json::to_value(output).unwrap()))
+                    output.to_response()
                 }
-            }
-            Err(e) => Err(e),
-        }
+            })
+            .into()
     }
 }

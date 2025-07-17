@@ -1,4 +1,4 @@
-use crate::cli::{HashResponse, HashResult, Response};
+use crate::types::{CliResult, HashResponse, HashResult, Response};
 use crate::client::Client;
 use crate::commands::SubCommand;
 use crate::encode::encoding::Encoding;
@@ -14,22 +14,23 @@ pub struct HashCommand {
     /// Input encoding(s)
     #[arg(short, long, value_delimiter = ',')]
     pub input_encoding: Vec<String>,
-    /// The input to hash
-    pub input: String,
 }
 
 impl SubCommand for HashCommand {
-    fn run(&self, list_mode: bool) -> Result<Response, Error> {
+    fn run(&self, list_mode: bool, input: Option<&str>) -> CliResult {
+        let input = match input {
+            Some(i) => i,
+            None => return Error::MissingArgs("input".to_string()).into(),
+        };
         let client = Client::new();
         
         if !list_mode && self.algo.len() == 1 && self.input_encoding.len() == 1 {
             // Single algorithm, single encoding, non-list mode: return just the hash
             let algo_name = &self.algo[0];
             let encoding = &self.input_encoding[0];
-            match client.hash(algo_name, &self.input, Encoding::from(encoding)) {
-                Ok(hash) => Ok(Response::String(hash.to_string())),
-                Err(e) => Err(Error::from(e)),
-            }
+            client.hash(algo_name, input, Encoding::from(encoding))
+                .map(|hash| hash.to_string())
+                .into()
         } else {
             // Multiple algorithms/encodings or list mode: return full structure
             let results = self.input_encoding
@@ -39,7 +40,7 @@ impl SubCommand for HashCommand {
                         .iter()
                         .flat_map(|algo| {
                             client
-                                .hash(algo, &self.input, Encoding::from(encoding))
+                                .hash(algo, input, Encoding::from(encoding))
                                 .ok()
                                 .map(|output| {
                                     (
@@ -58,7 +59,7 @@ impl SubCommand for HashCommand {
                     }
                 })
                 .collect::<HashMap<String, HashMap<String, HashResult>>>();
-            Ok(Response::Hash(HashResponse::Multiple(results)))
+            Response::Hash(HashResponse::Multiple(results)).into()
         }
     }
 }

@@ -1,11 +1,10 @@
-use crate::cli::Response;
+use crate::types::CliResult;
 use crate::client::Client;
 use crate::commands::SubCommand;
-use crate::error::Error;
 use clap::Args;
 
 #[derive(Args)]
-pub struct RandomCommand {
+pub struct Random {
     /// Encoding type
     #[arg(short, long)]
     pub encoding: String,
@@ -14,12 +13,9 @@ pub struct RandomCommand {
     pub bytes: u64,
 }
 
-impl SubCommand for RandomCommand {
-    fn run(&self, _list_mode: bool) -> Result<Response, Error> {
+impl SubCommand for Random {
+    fn run(&self, _list_mode: bool, _input: Option<&str>) -> CliResult {
         let client = Client::new();
-        match client.random(&self.encoding, self.bytes as usize) {
-            Ok(output) => Ok(Response::String(output)),
-            Err(e) => Err(Error::from(e)),
-        }
+        client.random(&self.encoding, self.bytes as usize).into()
     }
 }

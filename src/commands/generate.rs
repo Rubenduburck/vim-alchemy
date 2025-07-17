@@ -1,7 +1,6 @@
-use crate::cli::Response;
+use crate::types::CliResult;
 use crate::client::Client;
 use crate::commands::SubCommand;
-use crate::error::Error;
 use clap::Args;
 
 #[derive(Args)]
@@ -15,11 +14,8 @@ pub struct GenerateCommand {
 }
 
 impl SubCommand for GenerateCommand {
-    fn run(&self, _list_mode: bool) -> Result<Response, Error> {
+    fn run(&self, _list_mode: bool, _input: Option<&str>) -> CliResult {
         let client = Client::new();
-        match client.generate(&self.encoding, self.bytes as usize) {
-            Ok(output) => Ok(Response::String(output)),
-            Err(e) => Err(Error::from(e)),
-        }
+        client.generate(&self.encoding, self.bytes as usize).into()
     }
 }

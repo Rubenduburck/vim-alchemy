@@ -1,20 +1,13 @@
-use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
+#![allow(clippy::uninlined_format_args)]
+use crate::commands::SubCommand as _;
 use crate::commands::{
-    classify::ClassifyCommand,
-    convert::ConvertCommand,
-    classify_and_convert::ClassifyAndConvertCommand,
-    flatten_array::FlattenArrayCommand,
-    chunk_array::ChunkArrayCommand,
-    reverse_array::ReverseArrayCommand,
-    rotate_array::RotateArrayCommand,
-    generate::GenerateCommand,
-    random::RandomCommand,
-    pad_left::PadLeftCommand,
-    pad_right::PadRightCommand,
-    hash::HashCommand,
-    classify_and_hash::ClassifyAndHashCommand,
+    array::ArrayCommand, classify::ClassifyCommand,
+    classify_and_convert::ClassifyAndConvertCommand, classify_and_hash::ClassifyAndHashCommand,
+    convert::ConvertCommand, generate::GenerateCommand,
+    hash::HashCommand, pad::Pad, random::Random,
 };
+use crate::types::CliResult;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "alchemy")]
@@ -24,75 +17,52 @@ pub struct Cli {
     /// Return all results in JSON format with scores
     #[arg(short, long, global = true)]
     pub list: bool,
-    
+
+    /// Input data (can be provided as last argument or via stdin)
+    #[arg(global = true)]
+    pub input: Option<String>,
+
     #[command(subcommand)]
     pub command: Commands,
 }
 
+impl Cli {
+    pub fn run(&self) -> CliResult {
+        let list_mode = self.list;
+        let input = self.input.as_deref();
+        match &self.command {
+            Commands::Array(cmd) => cmd.run(list_mode, input),
+            Commands::Classify(cmd) => cmd.run(list_mode, input),
+            Commands::Convert(cmd) => cmd.run(list_mode, input),
+            Commands::ClassifyAndConvert(cmd) => cmd.run(list_mode, input),
+            Commands::Generate(cmd) => cmd.run(list_mode, input),
+            Commands::Random(cmd) => cmd.run(list_mode, input),
+            Commands::Pad(cmd) => cmd.run(list_mode, input),
+            Commands::Hash(cmd) => cmd.run(list_mode, input),
+            Commands::ClassifyAndHash(cmd) => cmd.run(list_mode, input),
+        }
+    }
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Array manipulation commands
+    Array(ArrayCommand),
+    /// Classify input encoding
     Classify(ClassifyCommand),
+    /// Convert between encodings
     Convert(ConvertCommand),
+    /// Classify and convert in one step
     ClassifyAndConvert(ClassifyAndConvertCommand),
-    FlattenArray(FlattenArrayCommand),
-    ChunkArray(ChunkArrayCommand),
-    ReverseArray(ReverseArrayCommand),
-    RotateArray(RotateArrayCommand),
+    /// Generate random data
     Generate(GenerateCommand),
-    Random(RandomCommand),
-    PadLeft(PadLeftCommand),
-    PadRight(PadRightCommand),
+    /// Generate random data
+    Random(Random),
+    /// Pad data
+    Pad(Pad),
+    /// Hash data
     Hash(HashCommand),
+    /// Classify and hash in one step
     ClassifyAndHash(ClassifyAndHashCommand),
 }
 
-// Response types for JSON output
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Response {
-    String(String),
-    Classifications(Vec<ClassificationResult>),
-    Conversions(ConversionResponse),
-    Hash(HashResponse),
-    Json(serde_json::Value),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ClassificationResult {
-    pub encoding: String,
-    pub score: usize,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ConversionResponse {
-    Full {
-        encodings: Vec<EncodingWithDecodings>,
-    },
-    Regular(std::collections::HashMap<String, std::collections::HashMap<String, ConversionResult>>),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EncodingWithDecodings {
-    pub encoding: String,
-    pub score: usize,
-    pub decodings: std::collections::HashMap<String, String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum HashResponse {
-    Single(String),
-    Multiple(std::collections::HashMap<String, std::collections::HashMap<String, HashResult>>),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ConversionResult {
-    pub input: String,
-    pub output: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct HashResult {
-    pub output: String,
-}

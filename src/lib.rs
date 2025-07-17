@@ -8,6 +8,7 @@ pub mod commands;
 pub mod encode;
 pub mod error;
 pub mod logging;
+pub mod types;
 pub mod value;
 
 fn get_param<T: TryFrom<Value>>(args: &[(Value, Value)], name: &str) -> Result<T, Error> {

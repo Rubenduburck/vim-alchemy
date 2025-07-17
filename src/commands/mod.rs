@@ -1,20 +1,16 @@
+pub mod array;
 pub mod classify;
-pub mod convert;
 pub mod classify_and_convert;
-pub mod flatten_array;
-pub mod chunk_array;
-pub mod reverse_array;
-pub mod rotate_array;
-pub mod generate;
-pub mod random;
-pub mod pad_left;
-pub mod pad_right;
-pub mod hash;
 pub mod classify_and_hash;
+pub mod convert;
+pub mod generate;
+pub mod hash;
+pub mod pad;
+pub mod random;
 
-use crate::cli::Response;
-use crate::error::Error;
+use crate::types::CliResult;
 
 pub trait SubCommand {
-    fn run(&self, list_mode: bool) -> Result<Response, Error>;
+    fn run(&self, list_mode: bool, input: Option<&str>) -> CliResult;
 }
+

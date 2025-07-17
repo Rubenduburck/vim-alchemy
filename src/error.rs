@@ -21,6 +21,9 @@ pub enum Error {
 
     #[error("Invalid args {0}")]
     InvalidArgs(String),
+
+    #[error("Generic error: {0}")]
+    Generic(String),
 }
 
 impl From<Error> for crate::value::Value {

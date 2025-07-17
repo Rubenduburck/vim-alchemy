@@ -102,7 +102,7 @@ fn test_hash_with_encoding() {
 fn test_flatten_array() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(["flatten-array", "[[1, 2], [3, 4]]"])
+        .args(["array", "flatten", "[[1, 2], [3, 4]]"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -115,7 +115,7 @@ fn test_flatten_array() {
 fn test_chunk_array() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(["chunk-array", "-c", "2", "[1, 2, 3, 4, 5, 6]"])
+        .args(["array", "chunk", "-c", "2", "[1, 2, 3, 4, 5, 6]"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -128,7 +128,7 @@ fn test_chunk_array() {
 fn test_reverse_array() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(["reverse-array", "-d", "1", "[1, 2, 3, 4, 5]"])
+        .args(["array", "reverse", "-d", "1", "[1, 2, 3, 4, 5]"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -141,7 +141,7 @@ fn test_reverse_array() {
 fn test_rotate_array() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(["rotate-array", "-r", "2", "[1, 2, 3, 4, 5]"])
+        .args(["array", "rotate", "-r", "2", "[1, 2, 3, 4, 5]"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -181,7 +181,7 @@ fn test_random() {
 fn test_pad_left() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(["pad-left", "-p", "4", "0x12"])
+        .args(["pad", "-p", "4", "-s", "left", "0x12"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -194,7 +194,7 @@ fn test_pad_left() {
 fn test_pad_right() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(["pad-right", "-p", "4", "0x12"])
+        .args(["pad", "-p", "4", "-s", "right", "0x12"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
