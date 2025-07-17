@@ -95,8 +95,6 @@ function M.setup(options)
 	options = options or {}
 	M.options = vim.tbl_deep_extend("force", M.defaults(), options)
 
-	require("alchemy.commands").setup()
-
 	-- Check if CLI binary exists
 	local cli_bin = M.options.cli.bin
 	if vim.fn.executable(cli_bin) == 0 then

@@ -14,13 +14,43 @@ Vim-alchemy consists of two parts:
 
 ## Installation
 
+### With lazy.nvim
+
 ```lua
 {
     "rubenduburck/vim-alchemy",
     event = "VeryLazy",
     build = "make",
-    opts = {},
+    opts = {
+        -- Optional: disable default keymaps (default: true)
+        default_keymaps = false,
+        
+        -- Optional: specify CLI binary path (default: "alchemy" from PATH)
+        cli = {
+            bin = "alchemy"
+        }
+    },
+    config = function(_, opts)
+        require("alchemy").setup(opts)
+    end,
 }
+```
+
+### Manual Setup
+
+```lua
+-- Basic setup (includes default keymaps)
+require("alchemy").setup()
+
+-- Setup without keymaps
+require("alchemy").setup({
+    default_keymaps = false
+})
+
+-- Setup with custom CLI binary
+require("alchemy").setup({
+    cli = { bin = "/path/to/alchemy" }
+})
 ```
 
 ## CLI Usage

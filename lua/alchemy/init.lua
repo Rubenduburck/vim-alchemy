@@ -11,8 +11,8 @@ function M.setup(opts)
 	require("alchemy.config").setup(opts)
 	M.create_commands()
 	
-	-- Only create keymaps if enabled (default: false)
-	if opts.default_keymaps then
+	-- Create keymaps unless explicitly disabled (default: true)
+	if opts.default_keymaps ~= false then
 		M.create_keymaps()
 	end
 end
@@ -26,7 +26,7 @@ function M.create_commands()
 		nargs = "?",
 		range = true,
 		desc = "Convert text between encodings (auto-detects input, prompts for output if not specified)",
-		complete = function(arg_lead, cmd_line, cursor_pos)
+		complete = function(_, _, _)
 			return { "hex", "int", "base64", "base58", "bin", "utf8", "ascii", "bytes" }
 		end,
 	})
@@ -152,7 +152,7 @@ function M.create_commands()
 		nargs = "?",
 		range = true,
 		desc = "Hash selected text with specified algorithm",
-		complete = function(arg_lead, cmd_line, cursor_pos)
+		complete = function(_, _, _)
 			return { "sha256", "sha512", "md5", "blake2", "keccak256" }
 		end,
 	})
@@ -164,7 +164,7 @@ function M.create_commands()
 		nargs = "*",
 		range = true,
 		desc = "Generate random data in specified format and length",
-		complete = function(arg_lead, cmd_line, cursor_pos)
+		complete = function(_, _, _)
 			return { "hex", "base64", "base58", "bin", "int", "utf8", "ascii" }
 		end,
 	})
@@ -235,15 +235,4 @@ function M.create_keymaps()
 	)
 end
 
--- Easy setup function with sensible defaults
-function M.easy_setup()
-	M.setup({
-		cli = {
-			bin = "alchemy",
-		},
-		default_keymaps = true,  -- Enable keymaps for easy setup
-	})
-end
-
 return M
-
