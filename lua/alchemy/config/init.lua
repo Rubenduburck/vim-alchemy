@@ -3,7 +3,7 @@ local M = {}
 
 function M.defaults()
 	local dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
-	local bin = dir .. "/../../../target/release/vim-alchemy"
+	local bin = "alchemy"  -- Default to binary in PATH
 	---@class AlchemyConfig
 	local defaults = {
 		cli = {
@@ -66,9 +66,6 @@ function M.defaults()
 			rotate = {
 				rotation = 1,
 			},
-			reverse = {
-				depth = 1,
-			},
 			pad = {
 				padding = 32,
 			},
@@ -106,7 +103,6 @@ function M.setup(options)
 		vim.notify("Alchemy: CLI binary not found at " .. cli_bin, vim.log.levels.ERROR)
 		M._running = false
 	else
-		vim.notify("Alchemy: Using CLI at " .. cli_bin, vim.log.levels.DEBUG)
 		M._running = true
 	end
 end
