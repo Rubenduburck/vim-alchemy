@@ -1,26 +1,94 @@
-
-### VIM-ALCHEMY (WIP)
+### ALCHEMY
 
 > Convert stuff into other stuff
 
 ## Description
 
-Vim-alchemy is your one stop shop for manipulating data in vim.
-Convert data, hash stuff, reverse arrays, pad bytes, etc.
+Alchemy is a powerful data manipulation tool for Vim/Neovim. It provides a CLI tool for encoding, decoding, hashing, and various data transformations, integrated seamlessly with your editor through a Lua plugin.
+
+## Architecture
+
+Alchemy consists of two parts:
+1. **CLI Tool**: A standalone binary written in Rust that handles all data transformations
+2. **Neovim Plugin**: A Lua plugin that provides editor integration and calls the CLI
 
 ## Installation
 
+### With lazy.nvim
+
 ```lua
 {
-    "rubenduburck/vim-alchemy",
+    "rubenduburck/alchemy",
     event = "VeryLazy",
-    build = "make",
-    opts = {},
+    build = "make install",  -- Automatically downloads the correct binary for your platform
+    opts = {
+        -- Optional: disable default keymaps (default: true)
+        default_keymaps = false
+    },
+    config = function(_, opts)
+        require("alchemy").setup(opts)
+    end,
 }
 ```
 
+### Manual Installation
 
-## Usage
+1. **Automatic (recommended)**: `make install` - Downloads the correct binary for your platform
+2. **Manual**: Download from [releases](https://github.com/rubenduburck/alchemy/releases) and place in PATH
+3. **Build from source**: `make build` - Requires Rust toolchain
+
+### Plugin Setup
+
+```lua
+-- Basic setup (includes default keymaps and auto-detects binary)
+require("alchemy").setup()
+
+-- Setup without keymaps
+require("alchemy").setup({
+    default_keymaps = false
+})
+
+-- Setup with custom CLI binary path
+require("alchemy").setup({
+    cli = { bin = "/path/to/alchemy" }
+})
+```
+
+The plugin automatically looks for the `alchemy` binary in:
+1. `./bin/alchemy` (downloaded by `make install`)
+2. Your PATH
+3. Common installation locations
+
+## CLI Usage
+
+The CLI tool can be used standalone for data manipulation:
+
+```bash
+# Classify input encoding
+alchemy classify "0x1234"
+
+# Convert between encodings
+alchemy convert --from hex --to base64 "0x1234"
+
+# Classify and convert automatically
+alchemy convert --to base64 "0x1234"
+
+# Hash data
+alchemy hash sha256 "0x1234"
+alchemy chunk-array -c 2 "[1,2,3,4,5,6]"
+alchemy reverse-array -d 1 "[1,2,3,4]"
+alchemy rotate-array -r 2 "[1,2,3,4]"
+
+# Generate data
+alchemy generate -e hex -b 32
+alchemy random -e base64 -b 16
+
+# Padding
+alchemy pad-left -p 32 "0x1234"
+alchemy pad-right -p 32 "0x1234"
+```
+
+## Neovim Usage
 
 ### Convert
 ```vim
@@ -34,115 +102,73 @@ Set `input_encoding` to `auto` to automatically detect the input encoding.
 Set `input_encoding` to `select` to select the encoding from a list of options.
 Set `output_encoding` to `select` to select the encoding from a list of options.
 
-#### Auto-detection
+### Auto-detection
 The plugin will do its best to figure out what your input is.
 Sometimes it needs a little help, e.g. if you have hex bytes without the 0x prefix.
 Simply highlight the text you want to convert and run the command with the desired encoding.
-Encoding can be any of the following:
-* ```hex```
-* ```bytes```
-* ```int```
-* ```bin```
-* ```base{2-36, 58, 64}```
-* ```utf{8, 16}```(experimental)
 
-Add more defaults to the config
+## Supported Encodings
 
-#### Examples
+* `hex` - Hexadecimal (with or without 0x prefix)
+* `bytes` - Byte arrays like [0x12, 0x34]
+* `int` - Decimal integers
+* `bin` - Binary (0b prefix optional)
+* `base{2-36}` - Base N encoding
+* `base58` - Base58 encoding
+* `base64` - Base64 encoding  
+* `utf8` - UTF-8 text
+* `utf16` - UTF-16 text
+* `ascii` - ASCII text
 
-Convert between bases:
-```vim
-" with 1000000000000000000 highlighted
-:Alch classify_and_convert hex 
-:Alch convert int hex
-" output: 0xde0b6b3a7640000
+## Supported Hash Algorithms
+
+* `md5`
+* `sha1`
+* `sha256`, `sha384`, `sha512`
+* `sha3-256`, `sha3-384`, `sha3-512`
+* `keccak256`, `keccak512`
+* `blake2b`, `blake2s`
+
+## Configuration
+
+```lua
+require('alchemy').setup({
+    cli = {
+        bin = "alchemy", -- Path to CLI binary
+    },
+    hashers = {
+        "md5", "sha256", "sha512", -- etc
+    },
+    input_encodings = {
+        "int", "hex", "bin", "base58", "base64", -- etc
+    },
+    output_encodings = {
+        "int", "hex", "bin", "bytes", "[int]", -- etc
+    },
+})
 ```
 
-```vim
-" with 0b110111100000101101011001110101001110010000000000 highlighted
-:Alch classify_and_convert base64
-:Alch convert bin base64
-" output 3gtZ1OQA
+## Development
+
+### Building from source
+
+```bash
+# Clone the repository
+git clone https://github.com/rubenduburck/alchemy
+cd alchemy
+
+# Build the CLI tool
+cargo build --release
+
+# The binary will be at target/release/alchemy
 ```
 
-Handles arbitrary size btw:
-```vim
-" with 123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890 highlighted
-:Alch classify_and_convert hex
-:Alch convert int hex
-" output: 0x79dd55ae1cb75eea2dcc2a04430c813e5739185d3559085ef523a55a7ce2c5392c7d287cbdd892ae321dfd37238836d35ba5ceea2a01788a9935e243d1161ef7bf14baccff196ce3f0ad2
-```
+### Running tests
 
-```vim
-" with 0xde0b6b3a7640000 highlighted
-:Alch convert hex bytes 
-:Alch classify_and_convert bytes
-" replaces with [0x0, 0x0, 0x64, 0xa7, 0xb3, 0xb6, 0xe0, 0xd]
-```
-
-### Hashing
-
-Available hashers:
-* ```sha2-{224, 256, 384, 512}```
-* ```sha3-{224, 256, 384, 512}```
-* ```keccak-{224, 256, 384, 512}```
-* ```blake2-{256, 512}```
-
-```vim
-    :Alch classify_and_hash {optional:hasher}
-    :Alch hash {optional:input_encoding} {optional:hasher}
-```
-
-Hashes visual selection with the specified hasher.
-classify_and_hash will guess the hasher.
-Set `hasher` to `select` to select the hasher from a list of options.
-Set `input_encoding` to `auto` to automatically detect the input encoding.
-Set `input_encoding` to `select` to select the encoding from a list of options.
-
-#### Examples
-
-Ethereum function signature:
-```vim
-" with Swap(address,uint256,uint256,uint256,uint256,address) highlighted
-:Alch hash ascii keccak256
-:Alch classify_and_hash keccak256
-" replaces with 0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822
-```
-
-Solana anchor function signature:
-```vim
-" with global:initialize highlighted
-:Alch hash ascii sha2
-:Alch classify_and_hash sha2
-" replaces with 0xafaf6d1f0d989bedd46a95073281adc21bb5e0e1d773b2fbbd7ab504cdd4aa30
-```
-
-### Manipulate Arrays
-
-#### Examples
-```vim
-" with [0x0, 0x0, 0x64, 0xa7, 0xb3, 0xb6, 0xe0, 0xd] highlighted
-:Alch pad_left 32 
-" replaces with [0x00, 0x00, 0x64, 0xa7, 0xb3, 0xb6, 0xe0, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-```
-
-```vim
-" with [0x00, 0x00, 0x64, 0xa7, 0xb3, 0xb6, 0xe0, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 ] highlighted
-:Alch chunk 4 
-" replaces with [0xde0b6b3a7640000, 0x0, 0x0, 0x0]
-```
-
-```vim
-" with [0xde0b6b3a7640000, 0x0, 0x0, 0x0] highlighted
-:Alch reverse
-" replaces with [0x0, 0x0, 0x0, 0xde0b6b3a7640000]
+```bash
+cargo test
 ```
 
 ## License
-[MIT](https://choosealicense.com/licenses/mit/)
 
-## Roadmap
-
-## Known Issues
-* Random is kinda slow
-* Various tools don't work line wise
+MIT

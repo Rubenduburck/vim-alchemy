@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use neovim_lib::Value;
+use crate::value::Value;
 
 use crate::encode::{
     encoding::{ArrayEncoding, BaseEncoding, Encoding, TextEncoding},

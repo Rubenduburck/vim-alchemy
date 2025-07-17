@@ -10,7 +10,7 @@ use crate::{
     encode::error::Error,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Decoded {
     Array(Vec<Decoded>),
     Bytes(Vec<u8>),
@@ -224,59 +224,73 @@ impl Decoded {
 
     pub fn left_pad(&self, padding: usize) -> Self {
         match self {
-            Self::Array(a) => Self::Array(
-                std::iter::repeat(Decoded::Bytes(vec![0]))
-                    .take(padding.saturating_sub(a.len()))
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .chain(a.iter().cloned())
-                    .collect(),
-            ),
-            Self::Bytes(b) => Self::Bytes(
-                std::iter::repeat(0)
-                    .take(padding.saturating_sub(b.len()))
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .chain(b.iter().cloned())
-                    .collect(),
-            ),
+            Self::Array(a) => {
+                let len = a.len();
+                if padding <= len {
+                    return Self::Array(a.clone());
+                }
+                let mut result = Vec::with_capacity(padding);
+                let padding_needed = padding - len;
+                result.extend(std::iter::repeat(Decoded::Bytes(vec![0])).take(padding_needed));
+                result.extend_from_slice(a);
+                Self::Array(result)
+            },
+            Self::Bytes(b) => {
+                let len = b.len();
+                if padding <= len {
+                    return Self::Bytes(b.clone());
+                }
+                let mut result = Vec::with_capacity(padding);
+                let padding_needed = padding - len;
+                result.extend(std::iter::repeat(0).take(padding_needed));
+                result.extend_from_slice(b);
+                Self::Bytes(result)
+            },
         }
     }
 
     pub fn right_pad(&self, padding: usize) -> Self {
         match self {
-            Self::Array(a) => Self::Array(
-                a.iter()
-                    .cloned()
-                    .chain(
-                        std::iter::repeat(Decoded::Bytes(vec![0]))
-                            .take(padding.saturating_sub(a.len()))
-                            .collect::<Vec<_>>(),
-                    )
-                    .collect(),
-            ),
-            Self::Bytes(b) => Self::Bytes(
-                b.iter()
-                    .cloned()
-                    .chain(
-                        std::iter::repeat(0)
-                            .take(padding.saturating_sub(b.len()))
-                            .collect::<Vec<_>>(),
-                    )
-                    .collect(),
-            ),
+            Self::Array(a) => {
+                let len = a.len();
+                if padding <= len {
+                    return Self::Array(a.clone());
+                }
+                let mut result = Vec::with_capacity(padding);
+                result.extend_from_slice(a);
+                let padding_needed = padding - len;
+                result.extend(std::iter::repeat(Decoded::Bytes(vec![0])).take(padding_needed));
+                Self::Array(result)
+            },
+            Self::Bytes(b) => {
+                let len = b.len();
+                if padding <= len {
+                    return Self::Bytes(b.clone());
+                }
+                let mut result = Vec::with_capacity(padding);
+                result.extend_from_slice(b);
+                let padding_needed = padding - len;
+                result.extend(std::iter::repeat(0).take(padding_needed));
+                Self::Bytes(result)
+            },
         }
     }
 
     pub fn flatten_values(&self) -> Vec<Decoded> {
         match self {
-            Self::Array(a) => a
-                .iter()
-                .flat_map(|x| match x {
-                    Self::Array(a) => a.to_vec(),
-                    _ => vec![x.clone()],
-                })
-                .collect(),
+            Self::Array(a) => {
+                let capacity = a.iter()
+                    .map(|x| if let Self::Array(inner) = x { inner.len() } else { 1 })
+                    .sum();
+                let mut result = Vec::with_capacity(capacity);
+                for x in a {
+                    match x {
+                        Self::Array(inner_a) => result.extend_from_slice(inner_a),
+                        _ => result.push(x.clone()),
+                    }
+                }
+                result
+            },
             _ => vec![self.clone()],
         }
     }

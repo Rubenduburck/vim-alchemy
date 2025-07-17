@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use neovim_lib::Value;
+use crate::value::Value;
 
 use crate::{
     classify::{classifier::Classifier, types::Classification},
