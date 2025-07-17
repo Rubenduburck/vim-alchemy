@@ -2,82 +2,127 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., v0.1.0)'
-        required: true
-        default: 'v0.1.0'
-      prerelease:
-        description: 'Is this a prerelease?'
-        type: boolean
-        required: true
-        default: true
+    branches: [main]
+  release:
+    types: [created]
 
 env:
   CARGO_TERM_COLOR: always
-  BINARY_NAME: vim-alchemy
-
-permissions:
-  contents: write # Add this line to grant write permissions
 
 jobs:
-  release-linux:
-    name: Release - Linux x86_64
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # Add this line to grant write permissions to the job
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: alchemy-x86_64-linux
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: alchemy-aarch64-linux
+          
+          # macOS
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            name: alchemy-x86_64-macos
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            name: alchemy-aarch64-macos
+          
+          # Windows
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: alchemy-x86_64-windows
+            extension: .exe
 
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: x86_64-unknown-linux-gnu
-          override: true
-      
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgmp-dev
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+    
+    - name: Install cross-compilation tools (Linux ARM64)
+      if: matrix.target == 'aarch64-unknown-linux-gnu'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu
+    
+    - name: Configure cross-compilation
+      if: matrix.target == 'aarch64-unknown-linux-gnu'
+      run: |
+        mkdir -p ~/.cargo
+        echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+        echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+    
+    - name: Build
+      run: cargo build --release --target ${{ matrix.target }}
+    
+    - name: Prepare artifact
+      shell: bash
+      run: |
+        cd target/${{ matrix.target }}/release
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          cp alchemy.exe ../../${{ matrix.name }}.exe
+        else
+          cp alchemy ../../${{ matrix.name }}
+        fi
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.name }}
+        path: target/${{ matrix.name }}${{ matrix.extension }}
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    
+    - name: Generate release tag
+      id: tag
+      run: |
+        TAG="v$(date +'%Y.%m.%d')-$(git rev-parse --short HEAD)"
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        name: Release ${{ steps.tag.outputs.tag }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        files: artifacts/*/alchemy*
+        body: |
+          Automated release built from latest main branch.
           
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --verbose --release
+          ## Downloads
+          Choose the binary for your platform:
+          - **Linux x64**: `alchemy-x86_64-linux`
+          - **Linux ARM64**: `alchemy-aarch64-linux`
+          - **macOS Intel**: `alchemy-x86_64-macos`
+          - **macOS Apple Silicon**: `alchemy-aarch64-macos`
+          - **Windows x64**: `alchemy-x86_64-windows.exe`
           
-      - name: Prepare assets
-        shell: bash
-        run: |
-          mkdir -p release/
-          cp target/release/${{ env.BINARY_NAME }} release/
-          
-          # Include additional files
-          cp README.md release/ || true
-          cp LICENSE* release/ || true
-          
-          # Create archive
-          cd release
-          tar -czf ../${{ env.BINARY_NAME }}-Linux-x86_64.tar.gz *
-          cd ..
-          
-      - name: Generate SHA-256 checksums
-        shell: bash
-        run: |
-          sha256sum ${{ env.BINARY_NAME }}-Linux-x86_64.tar.gz > ${{ env.BINARY_NAME }}-Linux-x86_64.sha256
-          
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            ${{ env.BINARY_NAME }}-Linux-x86_64.*
-          generate_release_notes: true
-          prerelease: ${{ github.event.inputs.prerelease || false }}
-          tag_name: ${{ github.event.inputs.version || github.ref_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ## Installation
+          1. Download the appropriate binary for your platform
+          2. Rename it to `alchemy` (remove architecture suffix)
+          3. Make it executable: `chmod +x alchemy`
+          4. Move to a directory in your PATH: `mv alchemy ~/.local/bin/`
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

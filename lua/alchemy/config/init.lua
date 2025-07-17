@@ -2,8 +2,25 @@
 local M = {}
 
 function M.defaults()
-	local dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
-	local bin = "alchemy"  -- Default to binary in PATH
+	local plugin_dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
+	if plugin_dir then
+		plugin_dir = plugin_dir .. "/../../../"  -- Go up to plugin root
+	end
+	
+	-- Try to find binary in various locations
+	local possible_paths = {
+		plugin_dir and (plugin_dir .. "bin/alchemy") or nil,  -- Local installation
+		vim.fn.expand("~/.local/bin/alchemy"),                -- User local
+		"alchemy"                                             -- In PATH
+	}
+	
+	local bin = "alchemy"  -- Default fallback
+	for _, path in ipairs(possible_paths) do
+		if path and vim.fn.executable(path) == 1 then
+			bin = path
+			break
+		end
+	end
 	---@class AlchemyConfig
 	local defaults = {
 		cli = {
