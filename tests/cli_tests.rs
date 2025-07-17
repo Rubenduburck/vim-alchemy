@@ -33,7 +33,7 @@ fn test_classify_base64() {
 fn test_convert_with_input_encoding() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["convert", "-i", "hex", "-o", "base64", "0x1234"])
+        .args(["convert", "-i", "hex", "-o", "base64", "0x1234"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -46,7 +46,7 @@ fn test_convert_with_input_encoding() {
 fn test_convert_without_input_encoding_auto_classify() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["convert", "-o", "base64", "0x1234"])
+        .args(["convert", "-o", "base64", "0x1234"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -59,7 +59,7 @@ fn test_convert_without_input_encoding_auto_classify() {
 fn test_convert_multiple_outputs() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["--list", "convert", "-i", "hex", "-o", "base64,int,bin", "0xff"])
+        .args(["--list", "convert", "-i", "hex", "-o", "base64,int,bin", "0xff"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -76,7 +76,7 @@ fn test_convert_multiple_outputs() {
 fn test_classify_and_convert() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["classify-and-convert", "-o", "base64", "0x1234"])
+        .args(["classify-and-convert", "-o", "base64", "0x1234"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -89,7 +89,7 @@ fn test_classify_and_convert() {
 fn test_hash_with_encoding() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["hash", "-a", "sha256", "-i", "hex", "0x1234"])
+        .args(["hash", "-a", "sha256", "-i", "hex", "0x1234"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -102,7 +102,7 @@ fn test_hash_with_encoding() {
 fn test_flatten_array() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["flatten-array", "[[1, 2], [3, 4]]"])
+        .args(["flatten-array", "[[1, 2], [3, 4]]"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -115,7 +115,7 @@ fn test_flatten_array() {
 fn test_chunk_array() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["chunk-array", "-c", "2", "[1, 2, 3, 4, 5, 6]"])
+        .args(["chunk-array", "-c", "2", "[1, 2, 3, 4, 5, 6]"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -128,7 +128,7 @@ fn test_chunk_array() {
 fn test_reverse_array() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["reverse-array", "-d", "1", "[1, 2, 3, 4, 5]"])
+        .args(["reverse-array", "-d", "1", "[1, 2, 3, 4, 5]"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -141,7 +141,7 @@ fn test_reverse_array() {
 fn test_rotate_array() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["rotate-array", "-r", "2", "[1, 2, 3, 4, 5]"])
+        .args(["rotate-array", "-r", "2", "[1, 2, 3, 4, 5]"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -154,7 +154,7 @@ fn test_rotate_array() {
 fn test_generate() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["generate", "-e", "hex", "-b", "4"])
+        .args(["generate", "-e", "hex", "-b", "4"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -168,7 +168,7 @@ fn test_generate() {
 fn test_random() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["random", "-e", "base64", "-b", "16"])
+        .args(["random", "-e", "base64", "-b", "16"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -181,7 +181,7 @@ fn test_random() {
 fn test_pad_left() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["pad-left", "-p", "4", "0x12"])
+        .args(["pad-left", "-p", "4", "0x12"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -194,7 +194,7 @@ fn test_pad_left() {
 fn test_pad_right() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["pad-right", "-p", "4", "0x12"])
+        .args(["pad-right", "-p", "4", "0x12"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -207,7 +207,7 @@ fn test_pad_right() {
 fn test_classify_and_hash() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["classify-and-hash", "-a", "sha256", "Hello World"])
+        .args(["classify-and-hash", "-a", "sha256", "Hello World"])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -221,7 +221,7 @@ fn test_classify_and_hash() {
 fn test_convert_base64_to_hex_auto() {
     let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
-        .args(&["convert", "-o", "hex", "SGVsbG8gV29ybGQ="])
+        .args(["convert", "-o", "hex", "SGVsbG8gV29ybGQ="])
         .assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     

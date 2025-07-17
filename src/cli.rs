@@ -149,13 +149,19 @@ pub struct ClassificationResult {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ConversionResponse {
-    // For when we have all encodings and decodings
+    // For when no input/output encoding provided
     Full {
-        encodings: Vec<ClassificationResult>,
-        decodings: std::collections::HashMap<String, Vec<String>>,
+        encodings: Vec<EncodingWithDecodings>,
     },
     // For regular conversions
     Regular(std::collections::HashMap<String, std::collections::HashMap<String, ConversionResult>>),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EncodingWithDecodings {
+    pub encoding: String,
+    pub score: usize,
+    pub decodings: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

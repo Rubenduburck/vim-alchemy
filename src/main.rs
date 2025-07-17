@@ -1,6 +1,6 @@
 use clap::Parser;
 use std::collections::HashMap;
-use alchemy::cli::{Cli, Commands, ConversionResult, HashResult, Response, ClassificationResult, ConversionResponse, HashResponse};
+use alchemy::cli::{Cli, Commands, ConversionResult, HashResult, Response, ClassificationResult, ConversionResponse, HashResponse, EncodingWithDecodings};
 use alchemy::client::Client;
 use alchemy::encode::encoding::Encoding;
 use alchemy::error::Error;
@@ -44,7 +44,7 @@ fn main() {
             let was_input_encoding_none = input_encoding.is_none();
             
             // Determine input encodings
-            let (encodings, classifications) = match input_encoding {
+            let (encodings, _classifications) = match input_encoding {
                 Some(encodings) => (encodings, None),
                 None => {
                     let mut classifications = client.classify(&input);
@@ -57,26 +57,35 @@ fn main() {
             
             // Handle special cases
             if was_input_encoding_none && output_encoding.is_empty() {
-                // No input and no output encoding provided: return all encodings with scores and all decodings
-                let classification_results: Vec<ClassificationResult> = classifications.unwrap()
-                    .iter()
-                    .map(|c| ClassificationResult {
-                        encoding: c.encoding().to_string(),
-                        score: c.score(),
-                    })
-                    .collect();
+                // No input and no output encoding provided: show encodings with scores and all their possible decodings
+                let classifications = _classifications.unwrap();
+                let mut encodings_with_decodings = Vec::new();
                 
-                // Get all possible decodings
-                let mut decodings: HashMap<String, Vec<String>> = HashMap::new();
-                for encoding in &encodings {
-                    if let Ok(decoded) = client.decode(&Encoding::from(encoding), &input) {
-                        decodings.insert(encoding.clone(), vec![decoded.to_string()]);
+                // Get all available output encodings from the client
+                let all_encodings = vec!["hex", "base64", "utf8", "int", "bin", "base58"];
+                
+                for (classification, encoding_str) in classifications.iter().zip(&encodings) {
+                    let mut decodings = HashMap::new();
+                    
+                    // Try to decode with this encoding
+                    if let Ok(decoded) = client.decode(&Encoding::from(encoding_str), &input) {
+                        // Try to encode the decoded value to all possible output encodings
+                        for output_enc in &all_encodings {
+                            if let Ok(encoded) = client.encode(&Encoding::from(*output_enc), &decoded) {
+                                decodings.insert(output_enc.to_string(), encoded);
+                            }
+                        }
                     }
+                    
+                    encodings_with_decodings.push(EncodingWithDecodings {
+                        encoding: classification.encoding().to_string(),
+                        score: classification.score(),
+                        decodings,
+                    });
                 }
                 
                 Ok(Response::Conversions(ConversionResponse::Full {
-                    encodings: classification_results,
-                    decodings,
+                    encodings: encodings_with_decodings,
                 }))
             } else if output_encoding.is_empty() {
                 // No output encoding provided: return list of possible decodings
