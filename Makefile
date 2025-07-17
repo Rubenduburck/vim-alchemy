@@ -20,9 +20,7 @@ ifeq ($(UNAME), Linux)
 else ifeq ($(UNAME), Darwin)
 	RELEASE_OS := macos
 	BINARY_EXT := 
-else ifeq ($(UNAME), MINGW64_NT)
-	RELEASE_OS := windows
-	BINARY_EXT := .exe
+# Windows not supported due to rug dependency
 else
 	$(error Unsupported operating system: $(UNAME))
 endif
@@ -55,10 +53,26 @@ clean:
 
 # Build from source (development)
 build:
-	cargo build --release
+	CFLAGS="-std=gnu17" CXXFLAGS="-std=gnu++17" cargo build --release
 	mkdir -p $(BIN_DIR)
 	cp target/release/alchemy$(BINARY_EXT) $(INSTALLED_BINARY)
 	@echo "✅ alchemy binary built and installed to $(INSTALLED_BINARY)"
+
+# Build for a specific target architecture
+# Usage: make build-target TARGET=aarch64-unknown-linux-gnu
+build-target:
+	@if [ -z "$(TARGET)" ]; then \
+		echo "❌ TARGET not specified. Usage: make build-target TARGET=<target-triple>"; \
+		echo "Available targets:"; \
+		echo "  - x86_64-unknown-linux-gnu"; \
+		echo "  - aarch64-unknown-linux-gnu"; \
+		echo "  - x86_64-apple-darwin"; \
+		echo "  - aarch64-apple-darwin"; \
+		exit 1; \
+	fi
+	CFLAGS="-std=gnu17" CXXFLAGS="-std=gnu++17" cargo build --release --target $(TARGET)
+	@echo "✅ Built for target: $(TARGET)"
+	@echo "Binary location: target/$(TARGET)/release/alchemy$(BINARY_EXT)"
 
 # Check if binary is installed and working
 check:
@@ -69,4 +83,4 @@ check:
 		echo "❌ alchemy binary not found. Run 'make install' first."; \
 	fi
 
-.PHONY: all install clean build check
+.PHONY: all install clean build check build-target

@@ -8,6 +8,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CFLAGS: -std=gnu17
+  CXXFLAGS: -std=gnu++17
 
 jobs:
   check-version:
@@ -56,17 +58,11 @@ jobs:
           
           # macOS
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-13  # Use Intel runner for x86_64
             name: alchemy-x86_64-macos
           - target: aarch64-apple-darwin
-            os: macos-latest
+            os: macos-latest  # Use Apple Silicon runner for aarch64
             name: alchemy-aarch64-macos
-          
-          # Windows
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            name: alchemy-x86_64-windows
-            extension: .exe
 
     steps:
     - uses: actions/checkout@v4
@@ -76,11 +72,24 @@ jobs:
       with:
         targets: ${{ matrix.target }}
     
+    - name: Install build dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev
+    
+    - name: Install build dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install gmp mpfr
+    
     - name: Install cross-compilation tools (Linux ARM64)
       if: matrix.target == 'aarch64-unknown-linux-gnu'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu
+        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+        sudo apt-get install -y libc6-dev-arm64-cross
+        # Install m4 which is required for GMP compilation
+        sudo apt-get install -y m4
     
     - name: Configure cross-compilation
       if: matrix.target == 'aarch64-unknown-linux-gnu'
@@ -88,25 +97,47 @@ jobs:
         mkdir -p ~/.cargo
         echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
         echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
+        # Set environment variables for cross-compilation
+        echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+        echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+        echo "AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar" >> $GITHUB_ENV
+        echo "CFLAGS_aarch64_unknown_linux_gnu=-std=gnu17" >> $GITHUB_ENV
+        echo "CXXFLAGS_aarch64_unknown_linux_gnu=-std=gnu++17" >> $GITHUB_ENV
+        # Also set the generic CC/AR for configure scripts
+        echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+        echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
+        echo "HOST=aarch64-unknown-linux-gnu" >> $GITHUB_ENV
     
     - name: Build
-      run: cargo build --release --target ${{ matrix.target }}
+      run: |
+        if [[ "${{ runner.os }}" == "macOS" ]]; then
+          # For macOS, ensure we're not cross-compiling
+          CURRENT_ARCH=$(uname -m)
+          TARGET_ARCH="${{ matrix.target }}"
+          if [[ "$CURRENT_ARCH" == "x86_64" && "$TARGET_ARCH" == "x86_64-apple-darwin" ]] || 
+             [[ "$CURRENT_ARCH" == "arm64" && "$TARGET_ARCH" == "aarch64-apple-darwin" ]]; then
+            echo "Building native binary for $TARGET_ARCH"
+            cargo build --release --target ${{ matrix.target }}
+          else
+            echo "Error: Cross-compilation on macOS not supported"
+            exit 1
+          fi
+        else
+          # For other platforms, build normally
+          cargo build --release --target ${{ matrix.target }}
+        fi
     
     - name: Prepare artifact
       shell: bash
       run: |
         cd target/${{ matrix.target }}/release
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          cp alchemy.exe ../../${{ matrix.name }}.exe
-        else
-          cp alchemy ../../${{ matrix.name }}
-        fi
+        cp alchemy ../../${{ matrix.name }}
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.name }}
-        path: target/${{ matrix.name }}${{ matrix.extension }}
+        path: target/${{ matrix.name }}
 
   release:
     name: Create Release
@@ -161,7 +192,8 @@ jobs:
           - **Linux ARM64**: `alchemy-aarch64-linux`
           - **macOS Intel**: `alchemy-x86_64-macos`
           - **macOS Apple Silicon**: `alchemy-aarch64-macos`
-          - **Windows x64**: `alchemy-x86_64-windows.exe`
+          
+          **Note**: Windows is not supported due to the `rug` dependency requiring GMP/MPFR libraries.
           
           ### Installation
           1. Download the appropriate binary for your platform

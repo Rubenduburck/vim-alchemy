@@ -163,6 +163,55 @@ cargo build --release
 # The binary will be at target/release/alchemy
 ```
 
+### Build Requirements
+
+This project uses the `rug` library for arbitrary precision arithmetic, which requires:
+- GMP (GNU Multiple Precision Arithmetic Library)
+- MPFR (Multiple Precision Floating-Point Reliable Library)
+- C compiler with GNU17 support
+
+**Important**: The project is configured to compile with `-std=gnu17` to ensure compatibility with the rug dependency.
+
+#### Installing dependencies:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install libgmp-dev libmpfr-dev libmpc-dev
+```
+
+**macOS:**
+```bash
+brew install gmp mpfr
+```
+
+**Windows:**
+Not supported due to GMP/MPFR dependency requirements.
+
+### Cross-compilation
+
+To build for different architectures:
+
+```bash
+# Build for specific target
+make build-target TARGET=aarch64-unknown-linux-gnu
+
+# Available targets:
+# - x86_64-unknown-linux-gnu
+# - aarch64-unknown-linux-gnu
+# - x86_64-apple-darwin
+# - aarch64-apple-darwin
+```
+
+### Supported Architectures
+
+Pre-built binaries are available for:
+- **Linux**: x86_64, aarch64
+- **macOS**: x86_64 (Intel), aarch64 (Apple Silicon)
+
+**Windows is not supported** due to the `rug` dependency requiring GMP/MPFR libraries which are difficult to build on Windows with MSVC.
+
+**Note**: Architecture support is limited by the `rug` dependency. If rug doesn't support a particular architecture, we cannot provide builds for it.
+
 ### Running tests
 
 ```bash
