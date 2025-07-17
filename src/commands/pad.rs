@@ -20,18 +20,21 @@ pub struct Pad {
     /// Side
     #[arg(short, long, default_value = "left", value_enum)]
     pub side: Side,
+    /// Input data to pad
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    input: Vec<String>,
 }
 
 impl SubCommand for Pad {
-    fn run(&self, _list_mode: bool, input: Option<&str>) -> CliResult {
-        let input = match input {
-            Some(i) => i,
-            None => return Error::MissingArgs("input".to_string()).into(),
-        };
+    fn run(&self, _list_mode: bool) -> CliResult {
+        if self.input.is_empty() {
+            return Error::MissingArgs("input".to_string()).into();
+        }
+        let input = self.input.join(" ");
         let client = Client::new();
         match self.side {
-            Side::Left => client.pad_left(self.padding as usize, input),
-            Side::Right => client.pad_right(self.padding as usize, input),
+            Side::Left => client.pad_left(self.padding as usize, &input),
+            Side::Right => client.pad_right(self.padding as usize, &input),
         }.into()
     }
 }

@@ -14,7 +14,7 @@ pub struct Random {
 }
 
 impl SubCommand for Random {
-    fn run(&self, _list_mode: bool, _input: Option<&str>) -> CliResult {
+    fn run(&self, _list_mode: bool) -> CliResult {
         let client = Client::new();
         client.random(&self.encoding, self.bytes as usize).into()
     }

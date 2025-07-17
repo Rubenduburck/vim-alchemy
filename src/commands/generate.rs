@@ -14,7 +14,7 @@ pub struct GenerateCommand {
 }
 
 impl SubCommand for GenerateCommand {
-    fn run(&self, _list_mode: bool, _input: Option<&str>) -> CliResult {
+    fn run(&self, _list_mode: bool) -> CliResult {
         let client = Client::new();
         client.generate(&self.encoding, self.bytes as usize).into()
     }

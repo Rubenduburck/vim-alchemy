@@ -5,6 +5,7 @@ use crate::encode::encoding::Encoding;
 use crate::error::Error;
 use clap::Args;
 use std::collections::HashMap;
+use std::io::{self, Read};
 
 #[derive(Args)]
 pub struct ConvertCommand {
@@ -14,14 +15,27 @@ pub struct ConvertCommand {
     /// Output encoding(s) - if not specified, will return all possible decodings
     #[arg(short, long, value_delimiter = ',')]
     pub output_encoding: Option<Vec<String>>,
+    /// Input data to convert
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    input: Vec<String>,
 }
 
 impl SubCommand for ConvertCommand {
-    fn run(&self, list_mode: bool, input: Option<&str>) -> CliResult {
-        let input = match input {
-            Some(i) => i,
-            None => return Error::MissingArgs("input".to_string()).into(),
+    fn run(&self, list_mode: bool) -> CliResult {
+        let input = if self.input.is_empty() {
+            // Read from stdin if no arguments provided
+            let mut buffer = String::new();
+            match io::stdin().read_to_string(&mut buffer) {
+                Ok(_) => buffer.trim().to_string(),
+                Err(e) => return Error::Generic(format!("Failed to read from stdin: {}", e)).into(),
+            }
+        } else {
+            self.input.join(" ")
         };
+        
+        if input.is_empty() {
+            return Error::MissingArgs("input".to_string()).into();
+        }
         let client = Client::new();
         let output_encoding = self.output_encoding.clone().unwrap_or_default();
         let was_input_encoding_none = self.input_encoding.is_none();
@@ -30,7 +44,7 @@ impl SubCommand for ConvertCommand {
         let (encodings, _classifications) = match &self.input_encoding {
             Some(encodings) => (encodings.clone(), None),
             None => {
-                let mut classifications = client.classify(input);
+                let mut classifications = client.classify(&input);
                 classifications.retain(|c| !c.is_empty());
                 classifications.sort();
                 let encoding_strings: Vec<String> = classifications
@@ -54,7 +68,7 @@ impl SubCommand for ConvertCommand {
                 let mut decodings = HashMap::new();
 
                 // Try to decode with this encoding
-                if let Ok(decoded) = client.decode(&Encoding::from(encoding_str), input) {
+                if let Ok(decoded) = client.decode(&Encoding::from(encoding_str), &input) {
                     // Try to encode the decoded value to all possible output encodings
                     for output_enc in &all_encodings {
                         if let Ok(encoded) = client.encode(&Encoding::from(*output_enc), &decoded) {
@@ -75,7 +89,7 @@ impl SubCommand for ConvertCommand {
             // No output encoding provided: return list of possible decodings
             let mut decodings: HashMap<String, Vec<String>> = HashMap::new();
             for encoding in &encodings {
-                if let Ok(decoded) = client.decode(&Encoding::from(encoding), input) {
+                if let Ok(decoded) = client.decode(&Encoding::from(encoding), &input) {
                     decodings.insert(encoding.clone(), vec![decoded.to_string()]);
                 }
             }
@@ -89,7 +103,7 @@ impl SubCommand for ConvertCommand {
                 // Try each encoding in order (sorted by score) and use the first successful one
                 let mut result_string = None;
                 for encoding in &encodings {
-                    if let Ok(decoded) = client.decode(&Encoding::from(encoding), input) {
+                    if let Ok(decoded) = client.decode(&Encoding::from(encoding), &input) {
                         if let Ok(encoded) = client.encode(&Encoding::from(output_enc), &decoded) {
                             result_string = Some(encoded);
                             break;
@@ -104,7 +118,7 @@ impl SubCommand for ConvertCommand {
                     .iter()
                     .flat_map(|encoding| {
                         client
-                            .decode(&Encoding::from(encoding), input)
+                            .decode(&Encoding::from(encoding), &input)
                             .ok()
                             .map(|decoded| {
                                 let conversions = output_encoding

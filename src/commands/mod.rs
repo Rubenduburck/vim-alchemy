@@ -9,6 +9,6 @@ pub mod random;
 use crate::types::CliResult;
 
 pub trait SubCommand {
-    fn run(&self, list_mode: bool, input: Option<&str>) -> CliResult;
+    fn run(&self, list_mode: bool) -> CliResult;
 }
 

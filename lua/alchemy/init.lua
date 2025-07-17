@@ -129,6 +129,14 @@ function M.create_commands()
 		desc = "Rotate array elements by specified amount",
 	})
 
+	vim.api.nvim_create_user_command("AlchReverse", function(cmd_opts)
+		Commands.reverse(cmd_opts.fargs)
+	end, {
+		nargs = "?",
+		range = true,
+		desc = "Reverse array at specified depth (default: 1)",
+	})
+
 	-- Padding commands
 	vim.api.nvim_create_user_command("AlchPadLeft", function(cmd_opts)
 		Commands.pad_left(cmd_opts.fargs)

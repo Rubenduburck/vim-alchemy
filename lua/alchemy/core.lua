@@ -116,27 +116,9 @@ end
 function M.execute_cli(cmd_args, expect_json)
 	expect_json = expect_json == nil and true or expect_json -- Default to true
 
-	-- Extract the input text if it's the last argument
-	local input_text = nil
-	local args = {}
-	
-	-- Check if last arg is the input text (doesn't start with -)
-	if #cmd_args > 0 and not cmd_args[#cmd_args]:match("^%-") then
-		input_text = cmd_args[#cmd_args]
-		-- Copy all args except the last one
-		for i = 1, #cmd_args - 1 do
-			table.insert(args, cmd_args[i])
-		end
-	else
-		args = cmd_args
-	end
-
-	local cmd = vim.list_extend({ Config.options.cli.bin or "alchemy" }, args)
-	
-	-- Add input as a global parameter if we have it
-	if input_text then
-		table.insert(cmd, input_text)
-	end
+	-- Build the command - alchemy binary + all arguments
+	local cmd = { Config.options.cli.bin or "alchemy" }
+	vim.list_extend(cmd, cmd_args)
 	
 	local result = vim.fn.systemlist(cmd)
 	local output = table.concat(result, "\n")
@@ -173,8 +155,15 @@ function M.convert(text, input_encoding, output_encoding)
 
 	table.insert(args, text)
 
-	-- Try to parse as JSON first (for current CLI version)
-	local ok, result = pcall(M.execute_cli, args, true)
+	-- When both input and output encodings are specified, the CLI returns plain text
+	-- Otherwise it might return JSON, so we try plain text first
+	local ok, result = pcall(M.execute_cli, args, false)
+	if ok and result and result ~= "" then
+		return result
+	end
+	
+	-- If plain text failed, try JSON format
+	ok, result = pcall(M.execute_cli, args, true)
 	if ok and type(result) == "table" then
 		-- Extract the converted value from JSON
 		for _, conversions in pairs(result) do
@@ -182,11 +171,9 @@ function M.convert(text, input_encoding, output_encoding)
 				return conversions[output_encoding].output
 			end
 		end
-		error("No conversion result found in JSON")
-	else
-		-- Fall back to plain text (for future CLI version)
-		return M.execute_cli(args, false)
 	end
+	
+	error("No conversion result found")
 end
 
 -- Auto-classify and convert (no input encoding specified)

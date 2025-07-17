@@ -192,6 +192,25 @@ function M.rotate(args)
 	end
 end
 
+function M.reverse(args)
+	local depth = args and tonumber(args[1]) or 1
+
+	local text_selection = Core.get_text_selection()
+
+	if not text_selection.text or text_selection.text == "" then
+		vim.notify("No text to reverse", vim.log.levels.WARN)
+		return
+	end
+
+	local ok, result = pcall(Core.execute_cli, { "array", "reverse", "-d", tostring(depth), text_selection.text }, false)
+	if ok and result then
+		Core.replace_text(text_selection, result)
+		vim.notify(string.format("Array reversed at depth %d", depth))
+	else
+		vim.notify("Failed to reverse array: " .. (result or "unknown error"), vim.log.levels.ERROR)
+	end
+end
+
 -- Padding commands
 function M.pad_left(args)
 	local padding = args and tonumber(args[1])

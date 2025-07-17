@@ -14,14 +14,17 @@ pub struct HashCommand {
     /// Input encoding(s) - if not specified, will auto-classify
     #[arg(short, long, value_delimiter = ',')]
     pub input_encoding: Option<Vec<String>>,
+    /// Input data to hash
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    input: Vec<String>,
 }
 
 impl SubCommand for HashCommand {
-    fn run(&self, list_mode: bool, input: Option<&str>) -> CliResult {
-        let input = match input {
-            Some(i) => i,
-            None => return Error::MissingArgs("input".to_string()).into(),
-        };
+    fn run(&self, list_mode: bool) -> CliResult {
+        if self.input.is_empty() {
+            return Error::MissingArgs("input".to_string()).into();
+        }
+        let input = self.input.join(" ");
         let client = Client::new();
         
         // Determine input encodings
@@ -29,7 +32,7 @@ impl SubCommand for HashCommand {
             Some(encodings) => encodings.clone(),
             None => {
                 // Auto-classify if no input encoding provided
-                let mut classifications = client.classify(input);
+                let mut classifications = client.classify(&input);
                 classifications.retain(|c| !c.is_empty());
                 classifications.sort();
                 classifications
@@ -43,7 +46,7 @@ impl SubCommand for HashCommand {
             // Single algorithm, non-list mode: return just the hash using best encoding
             let algo_name = &self.algo[0];
             let encoding = &encodings[0]; // Use the best encoding (first in sorted list)
-            client.hash(algo_name, input, Encoding::from(encoding))
+            client.hash(algo_name, &input, Encoding::from(encoding))
                 .map(|hash| hash.to_string())
                 .into()
         } else {
@@ -55,7 +58,7 @@ impl SubCommand for HashCommand {
                         .iter()
                         .flat_map(|algo| {
                             client
-                                .hash(algo, input, Encoding::from(encoding))
+                                .hash(algo, &input, Encoding::from(encoding))
                                 .ok()
                                 .map(|output| {
                                     (

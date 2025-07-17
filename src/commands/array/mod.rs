@@ -31,12 +31,12 @@ pub enum ArrayCommands {
 }
 
 impl SubCommand for ArrayCommand {
-    fn run(&self, list_mode: bool, input: Option<&str>) -> CliResult {
+    fn run(&self, list_mode: bool) -> CliResult {
         match &self.command {
-            ArrayCommands::Flatten(cmd) => cmd.run(list_mode, input),
-            ArrayCommands::Chunk(cmd) => cmd.run(list_mode, input),
-            ArrayCommands::Reverse(cmd) => cmd.run(list_mode, input),
-            ArrayCommands::Rotate(cmd) => cmd.run(list_mode, input),
+            ArrayCommands::Flatten(cmd) => cmd.run(list_mode),
+            ArrayCommands::Chunk(cmd) => cmd.run(list_mode),
+            ArrayCommands::Reverse(cmd) => cmd.run(list_mode),
+            ArrayCommands::Rotate(cmd) => cmd.run(list_mode),
         }
     }
 }

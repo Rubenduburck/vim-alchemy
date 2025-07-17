@@ -6,16 +6,19 @@ use clap::Args;
 
 #[derive(Args)]
 pub struct ClassifyCommand {
+    /// Input data to classify
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    input: Vec<String>,
 }
 
 impl SubCommand for ClassifyCommand {
-    fn run(&self, list_mode: bool, input: Option<&str>) -> CliResult {
-        let input = match input {
-            Some(i) => i,
-            None => return Error::MissingArgs("input".to_string()).into(),
-        };
+    fn run(&self, list_mode: bool) -> CliResult {
+        if self.input.is_empty() {
+            return Error::MissingArgs("input".to_string()).into();
+        }
+        let input = self.input.join(" ");
         let client = Client::new();
-        let mut classifications = client.classify(input);
+        let mut classifications = client.classify(&input);
         classifications.retain(|c| !c.is_empty());
         classifications.sort(); // Sorts by score (ascending) then by encoding
 

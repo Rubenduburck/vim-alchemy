@@ -17,10 +17,6 @@ pub struct Cli {
     #[arg(short, long, global = true)]
     pub list: bool,
 
-    /// Input data (can be provided as last argument or via stdin)
-    #[arg(global = true)]
-    pub input: Option<String>,
-
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -28,15 +24,14 @@ pub struct Cli {
 impl Cli {
     pub fn run(&self) -> CliResult {
         let list_mode = self.list;
-        let input = self.input.as_deref();
         match &self.command {
-            Commands::Array(cmd) => cmd.run(list_mode, input),
-            Commands::Classify(cmd) => cmd.run(list_mode, input),
-            Commands::Convert(cmd) => cmd.run(list_mode, input),
-            Commands::Generate(cmd) => cmd.run(list_mode, input),
-            Commands::Random(cmd) => cmd.run(list_mode, input),
-            Commands::Pad(cmd) => cmd.run(list_mode, input),
-            Commands::Hash(cmd) => cmd.run(list_mode, input),
+            Commands::Array(cmd) => cmd.run(list_mode),
+            Commands::Classify(cmd) => cmd.run(list_mode),
+            Commands::Convert(cmd) => cmd.run(list_mode),
+            Commands::Generate(cmd) => cmd.run(list_mode),
+            Commands::Random(cmd) => cmd.run(list_mode),
+            Commands::Pad(cmd) => cmd.run(list_mode),
+            Commands::Hash(cmd) => cmd.run(list_mode),
         }
     }
 }
