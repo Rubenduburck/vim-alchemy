@@ -53,6 +53,133 @@ fn criterion_benchmark(c: &mut Criterion) {
             let _ = black_box(client.classify_and_convert(encoding, TEST_BYTES));
         })
     });
+
+    // Pure convert benchmarks (skip classification step)
+    c.bench_function("convert_int_to_hex", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("int"));
+            let output_enc = black_box(Encoding::from("hex"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_INT));
+        })
+    });
+
+    c.bench_function("convert_hex_to_int", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("hex"));
+            let output_enc = black_box(Encoding::from("int"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_HEX));
+        })
+    });
+
+    c.bench_function("convert_hex_to_base64", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("hex"));
+            let output_enc = black_box(Encoding::from("base64"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_HEX));
+        })
+    });
+
+    c.bench_function("convert_base64_to_hex", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("base64"));
+            let output_enc = black_box(Encoding::from("hex"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_BASE64));
+        })
+    });
+
+    c.bench_function("convert_int_to_base58", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("int"));
+            let output_enc = black_box(Encoding::from("base58"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_INT));
+        })
+    });
+
+    c.bench_function("convert_very_large_int_to_hex", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("int"));
+            let output_enc = black_box(Encoding::from("hex"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_VERY_LARGE_INT));
+        })
+    });
+
+    c.bench_function("convert_very_large_hex_to_int", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("hex"));
+            let output_enc = black_box(Encoding::from("int"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_VERY_LARGE_HEX));
+        })
+    });
+
+    c.bench_function("convert_array_bytes_to_hex", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("bytes"));
+            let output_enc = black_box(Encoding::from("hex"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_BYTES));
+        })
+    });
+
+    // String handling benchmarks to test Cow<str> optimizations
+    const TEST_MIXED_CASE: &str = "0xAbCdEf123456";
+    const TEST_LOWERCASE: &str = "0xabcdef123456";
+    
+    c.bench_function("convert_mixed_case_hex", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("HEX")); // Uppercase to test Cow
+            let output_enc = black_box(Encoding::from("int"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_MIXED_CASE));
+        })
+    });
+
+    c.bench_function("convert_lowercase_hex", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("hex")); // Lowercase to test Cow
+            let output_enc = black_box(Encoding::from("int"));
+            let _ = black_box(client.convert(&input_enc, output_enc, TEST_LOWERCASE));
+        })
+    });
+
+    // Padding operation benchmarks to test our optimizations
+    const LARGE_BYTE_ARRAY: &str = "[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20]";
+    
+    c.bench_function("convert_large_byte_array", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("bytes"));
+            let output_enc = black_box(Encoding::from("base64"));
+            let _ = black_box(client.convert(&input_enc, output_enc, LARGE_BYTE_ARRAY));
+        })
+    });
+
+    // Nested array benchmark to test flatten_values optimization
+    const NESTED_ARRAY: &str = "[[0x01, 0x02], [0x03, 0x04], [0x05, 0x06]]";
+    
+    c.bench_function("convert_nested_array", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("bytes"));
+            let output_enc = black_box(Encoding::from("hex"));
+            let _ = black_box(client.convert(&input_enc, output_enc, NESTED_ARRAY));
+        })
+    });
+
+    // Benchmark small conversions to test overhead
+    const SMALL_HEX: &str = "0xff";
+    const SMALL_INT: &str = "255";
+    
+    c.bench_function("convert_small_hex_to_int", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("hex"));
+            let output_enc = black_box(Encoding::from("int"));
+            let _ = black_box(client.convert(&input_enc, output_enc, SMALL_HEX));
+        })
+    });
+
+    c.bench_function("convert_small_int_to_base64", |b| {
+        b.iter(|| {
+            let input_enc = black_box(Encoding::from("int"));
+            let output_enc = black_box(Encoding::from("base64"));
+            let _ = black_box(client.convert(&input_enc, output_enc, SMALL_INT));
+        })
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);

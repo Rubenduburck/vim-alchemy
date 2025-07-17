@@ -134,13 +134,19 @@ impl From<&String> for Encoding {
 
 impl From<&str> for Encoding {
     fn from(s: &str) -> Self {
-        let s = s.trim().to_lowercase();
+        use std::borrow::Cow;
+        let s = s.trim();
+        let s_lower: Cow<str> = if s.chars().any(|c| c.is_uppercase()) {
+            s.to_lowercase().into()
+        } else {
+            s.into()
+        };
 
         // [hex, int, base12] -> Array([Base(16), Base(10), Base(12)])
         // [hex; 3] -> Array([Base(16), Base(16), Base(16)])
-        if s.starts_with('[') && s.ends_with(']') {
+        if s_lower.starts_with('[') && s_lower.ends_with(']') {
             // TODO: make this smoother
-            let inner = s[1..s.len() - 1].trim();
+            let inner = s_lower[1..s_lower.len() - 1].trim();
             let split = inner.split(';').collect::<Vec<&str>>();
             let values = if split.len() == 2 {
                 let count = split[1].trim().parse::<usize>().unwrap_or(1);
@@ -165,7 +171,7 @@ impl From<&str> for Encoding {
             Encoding::Array(values)
 
         // base64, base-64, base_64, etc -> Base(64)
-        } else if let Some(stripped) = s.strip_prefix(Self::BASE) {
+        } else if let Some(stripped) = s_lower.strip_prefix(Self::BASE) {
             let num_str = stripped
                 .chars()
                 .filter(|c| c.is_ascii_digit())
@@ -173,7 +179,7 @@ impl From<&str> for Encoding {
             Encoding::Base(BaseEncoding::new(num_str.parse::<i32>().unwrap_or(10)))
 
         // utf8 -> Utf(8)
-        } else if let Some(stripped) = s.strip_prefix(Self::UTF) {
+        } else if let Some(stripped) = s_lower.strip_prefix(Self::UTF) {
             let num_str = stripped
                 .chars()
                 .filter(|c| c.is_ascii_digit())
@@ -182,7 +188,7 @@ impl From<&str> for Encoding {
 
         // hex -> Base(16)
         } else {
-            match s.as_str() {
+            match s_lower.as_ref() {
                 Self::BINARY => Encoding::Base(BaseEncoding::new(2)),
                 Self::HEX => Encoding::Base(BaseEncoding::new(16)),
                 Self::INTEGER => Encoding::Base(BaseEncoding::new(10)),

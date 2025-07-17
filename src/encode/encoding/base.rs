@@ -80,11 +80,11 @@ impl BaseEncoding {
     }
 
     fn encode_base_58(input: &Decoded) -> Result<String, Error> {
-        Ok(bs58::encode(input.to_be_bytes().clone()).into_string())
+        Ok(bs58::encode(&input.to_be_bytes()).into_string())
     }
 
     fn encode_base_64(input: &Decoded) -> Result<String, Error> {
-        Ok(Self::BASE_64_ENGINE.encode(input.to_be_bytes().clone()))
+        Ok(Self::BASE_64_ENGINE.encode(&input.to_be_bytes()))
     }
 
     fn base_n_pad_count(base: i32, target_byte_count: usize) -> usize {
@@ -95,12 +95,17 @@ impl BaseEncoding {
     }
 
     pub fn base_n_left_pad(base: i32, target_byte_count: usize) -> impl FnOnce(String) -> String {
-        let zero = Self::base_n_zero(base);
+        let zero_char = Self::base_n_zero(base).chars().next().unwrap_or('0');
         let target_str_len = Self::base_n_pad_count(base, target_byte_count);
         move |s| {
             let padding_count = target_str_len.saturating_sub(s.len());
-            let padding = zero.repeat(padding_count);
-            format!("{}{}", padding, s)
+            if padding_count == 0 {
+                return s;
+            }
+            let mut result = String::with_capacity(target_str_len);
+            result.extend(std::iter::repeat(zero_char).take(padding_count));
+            result.push_str(&s);
+            result
         }
     }
 }
