@@ -3,7 +3,7 @@ use serde_json::Value;
 
 #[test]
 fn test_classify_hex() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd.arg("classify").arg("0x1234").assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -17,7 +17,7 @@ fn test_classify_hex() {
 
 #[test]
 fn test_classify_base64() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd.arg("classify").arg("SGVsbG8gV29ybGQ=").assert();
     let output = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     
@@ -31,7 +31,7 @@ fn test_classify_base64() {
 
 #[test]
 fn test_convert_with_input_encoding() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["convert", "-i", "hex", "-o", "base64", "0x1234"])
         .assert();
@@ -49,7 +49,7 @@ fn test_convert_with_input_encoding() {
 
 #[test]
 fn test_convert_without_input_encoding_auto_classify() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["convert", "-o", "base64", "0x1234"])
         .assert();
@@ -67,7 +67,7 @@ fn test_convert_without_input_encoding_auto_classify() {
 
 #[test]
 fn test_convert_multiple_outputs() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["convert", "-i", "hex", "-o", "base64,int,bin", "0xff"])
         .assert();
@@ -84,7 +84,7 @@ fn test_convert_multiple_outputs() {
 
 #[test]
 fn test_classify_and_convert() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["classify-and-convert", "-o", "base64", "0x1234"])
         .assert();
@@ -99,7 +99,7 @@ fn test_classify_and_convert() {
 
 #[test]
 fn test_hash_with_encoding() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["hash", "-a", "sha256", "-i", "hex", "0x1234"])
         .assert();
@@ -115,7 +115,7 @@ fn test_hash_with_encoding() {
 
 #[test]
 fn test_flatten_array() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["flatten-array", "[[1, 2], [3, 4]]"])
         .assert();
@@ -130,7 +130,7 @@ fn test_flatten_array() {
 
 #[test]
 fn test_chunk_array() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["chunk-array", "-c", "2", "[1, 2, 3, 4, 5, 6]"])
         .assert();
@@ -146,7 +146,7 @@ fn test_chunk_array() {
 
 #[test]
 fn test_reverse_array() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["reverse-array", "-d", "1", "[1, 2, 3, 4, 5]"])
         .assert();
@@ -162,7 +162,7 @@ fn test_reverse_array() {
 
 #[test]
 fn test_rotate_array() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["rotate-array", "-r", "2", "[1, 2, 3, 4, 5]"])
         .assert();
@@ -178,7 +178,7 @@ fn test_rotate_array() {
 
 #[test]
 fn test_generate() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["generate", "-e", "hex", "-b", "4"])
         .assert();
@@ -194,7 +194,7 @@ fn test_generate() {
 
 #[test]
 fn test_random() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["random", "-e", "base64", "-b", "16"])
         .assert();
@@ -211,7 +211,7 @@ fn test_random() {
 
 #[test]
 fn test_pad_left() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["pad-left", "-p", "4", "0x12"])
         .assert();
@@ -225,7 +225,7 @@ fn test_pad_left() {
 
 #[test]
 fn test_pad_right() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["pad-right", "-p", "4", "0x12"])
         .assert();
@@ -239,7 +239,7 @@ fn test_pad_right() {
 
 #[test]
 fn test_classify_and_hash() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["classify-and-hash", "-a", "sha256", "Hello World"])
         .assert();
@@ -255,7 +255,7 @@ fn test_classify_and_hash() {
 
 #[test]
 fn test_convert_base64_to_hex_auto() {
-    let mut cmd = Command::cargo_bin("vim-alchemy").unwrap();
+    let mut cmd = Command::cargo_bin("alchemy").unwrap();
     let assert = cmd
         .args(&["convert", "-o", "hex", "SGVsbG8gV29ybGQ="])
         .assert();

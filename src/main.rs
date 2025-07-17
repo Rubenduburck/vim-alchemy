@@ -1,9 +1,9 @@
 use clap::Parser;
 use std::collections::HashMap;
-use vim_alchemy::cli::{Cli, Commands, ConversionResult, HashResult, Response};
-use vim_alchemy::client::Client;
-use vim_alchemy::encode::encoding::Encoding;
-use vim_alchemy::error::Error;
+use alchemy::cli::{Cli, Commands, ConversionResult, HashResult, Response};
+use alchemy::client::Client;
+use alchemy::encode::encoding::Encoding;
+use alchemy::error::Error;
 
 fn main() {
     let cli = Cli::parse();

@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use vim_alchemy::{client::Client, encode::encoding::Encoding};
+use alchemy::{client::Client, encode::encoding::Encoding};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let client = Client::new();

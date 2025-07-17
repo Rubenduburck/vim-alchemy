@@ -1,14 +1,14 @@
-### VIM-ALCHEMY
+### ALCHEMY
 
 > Convert stuff into other stuff
 
 ## Description
 
-Vim-alchemy is a powerful data manipulation tool for Vim/Neovim. It provides a CLI tool for encoding, decoding, hashing, and various data transformations, integrated seamlessly with your editor through a Lua plugin.
+Alchemy is a powerful data manipulation tool for Vim/Neovim. It provides a CLI tool for encoding, decoding, hashing, and various data transformations, integrated seamlessly with your editor through a Lua plugin.
 
 ## Architecture
 
-Vim-alchemy consists of two parts:
+Alchemy consists of two parts:
 1. **CLI Tool**: A standalone binary written in Rust that handles all data transformations
 2. **Neovim Plugin**: A Lua plugin that provides editor integration and calls the CLI
 
@@ -18,7 +18,7 @@ Vim-alchemy consists of two parts:
 
 ```lua
 {
-    "rubenduburck/vim-alchemy",
+    "rubenduburck/alchemy",
     event = "VeryLazy",
     build = "make install",  -- Automatically downloads the correct binary for your platform
     opts = {
@@ -34,7 +34,7 @@ Vim-alchemy consists of two parts:
 ### Manual Installation
 
 1. **Automatic (recommended)**: `make install` - Downloads the correct binary for your platform
-2. **Manual**: Download from [releases](https://github.com/rubenduburck/vim-alchemy/releases) and place in PATH
+2. **Manual**: Download from [releases](https://github.com/rubenduburck/alchemy/releases) and place in PATH
 3. **Build from source**: `make build` - Requires Rust toolchain
 
 ### Plugin Setup
@@ -65,30 +65,27 @@ The CLI tool can be used standalone for data manipulation:
 
 ```bash
 # Classify input encoding
-vim-alchemy classify "0x1234"
+alchemy classify "0x1234"
 
 # Convert between encodings
-vim-alchemy convert -i hex -o base64 "0x1234"
+alchemy convert --from hex --to base64 "0x1234"
 
 # Classify and convert automatically
-vim-alchemy classify-and-convert -o base64 "0x1234"
+alchemy convert --to base64 "0x1234"
 
 # Hash data
-vim-alchemy hash -a sha256 -i hex "0x1234"
-
-# Array operations
-vim-alchemy flatten-array "[[1,2],[3,4]]"
-vim-alchemy chunk-array -c 2 "[1,2,3,4,5,6]"
-vim-alchemy reverse-array -d 1 "[1,2,3,4]"
-vim-alchemy rotate-array -r 2 "[1,2,3,4]"
+alchemy hash sha256 "0x1234"
+alchemy chunk-array -c 2 "[1,2,3,4,5,6]"
+alchemy reverse-array -d 1 "[1,2,3,4]"
+alchemy rotate-array -r 2 "[1,2,3,4]"
 
 # Generate data
-vim-alchemy generate -e hex -b 32
-vim-alchemy random -e base64 -b 16
+alchemy generate -e hex -b 32
+alchemy random -e base64 -b 16
 
 # Padding
-vim-alchemy pad-left -p 32 "0x1234"
-vim-alchemy pad-right -p 32 "0x1234"
+alchemy pad-left -p 32 "0x1234"
+alchemy pad-right -p 32 "0x1234"
 ```
 
 ## Neovim Usage
@@ -137,7 +134,7 @@ Simply highlight the text you want to convert and run the command with the desir
 ```lua
 require('alchemy').setup({
     cli = {
-        bin = "vim-alchemy", -- Path to CLI binary
+        bin = "alchemy", -- Path to CLI binary
     },
     hashers = {
         "md5", "sha256", "sha512", -- etc
@@ -157,13 +154,13 @@ require('alchemy').setup({
 
 ```bash
 # Clone the repository
-git clone https://github.com/rubenduburck/vim-alchemy
-cd vim-alchemy
+git clone https://github.com/rubenduburck/alchemy
+cd alchemy
 
 # Build the CLI tool
 cargo build --release
 
-# The binary will be at target/release/vim-alchemy
+# The binary will be at target/release/alchemy
 ```
 
 ### Running tests

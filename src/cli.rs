@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 
 #[derive(Parser)]
-#[command(name = "vim-alchemy")]
+#[command(name = "alchemy")]
 #[command(about = "A CLI tool for encoding, decoding, and data transformation")]
 #[command(version)]
 pub struct Cli {
