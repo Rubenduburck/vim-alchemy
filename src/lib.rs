@@ -1,12 +1,13 @@
 use error::Error;
-use neovim_lib::Value;
+use value::Value;
 
 pub mod classify;
+pub mod cli;
 pub mod client;
 pub mod encode;
 pub mod error;
-pub mod handler;
 pub mod logging;
+pub mod value;
 
 fn get_param<T: TryFrom<Value>>(args: &[(Value, Value)], name: &str) -> Result<T, Error> {
     args.iter()

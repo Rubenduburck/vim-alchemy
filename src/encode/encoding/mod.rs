@@ -4,7 +4,7 @@ pub mod base;
 pub use base::BaseEncoding;
 
 pub mod text;
-use neovim_lib::Value;
+use crate::value::Value;
 pub use text::TextEncoding;
 
 pub mod array;

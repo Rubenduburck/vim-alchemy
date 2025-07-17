@@ -1,8 +1,8 @@
-use neovim_lib::Value;
+use crate::value::Value;
 
 use crate::{
     classify::{
-        regex::RegexCache,
+        regex,
         types::{Array, Classification},
     },
     encode::{
@@ -52,7 +52,6 @@ impl Default for Config {
 
 pub struct Classifier {
     cfg: Config,
-    re: RegexCache,
 }
 
 impl Default for Classifier {
@@ -65,10 +64,7 @@ impl Default for Classifier {
 impl Classifier {
     const PRECISION: usize = 1000;
     pub fn new(cfg: Config) -> Self {
-        Self {
-            re: RegexCache::new(),
-            cfg,
-        }
+        Self { cfg }
     }
 
     pub fn setup(&mut self, cfg: Config) {
@@ -158,7 +154,7 @@ impl Classifier {
     pub fn classify_base_with<'a>(&'a self, candidate: &'a str, base: i32) -> Classification<'a> {
         Classification::Integer(Integer::new(
             base,
-            self.re.extract_base(base)(candidate).unwrap_or(""),
+            regex::extract_base(base)(candidate).unwrap_or(""),
             self.base_n_err(candidate, base),
         ))
     }
@@ -187,8 +183,8 @@ impl Classifier {
 
     pub fn classify_array<'a>(&'a self, candidate: &'a str) -> Classification<'a> {
         match (
-            self.re.extract_separators()(candidate),
-            self.re.extract_brackets()(candidate),
+            regex::extract_separators()(candidate),
+            regex::extract_brackets()(candidate),
         ) {
             (None, None) => Classification::Empty,
             (separator, brackets) => {
@@ -227,7 +223,7 @@ impl Classifier {
         match candidate.len() {
             0 => Self::PRECISION,
             length => {
-                Self::PRECISION - Self::PRECISION * self.re.match_base(base)(candidate) / length
+                Self::PRECISION - Self::PRECISION * regex::match_base(base)(candidate) / length
             }
         }
     }
@@ -237,7 +233,7 @@ impl Classifier {
         match candidate.len() {
             0 => Self::PRECISION,
             length => {
-                Self::PRECISION - Self::PRECISION * self.re.match_text(encoding)(candidate) / length
+                Self::PRECISION - Self::PRECISION * regex::match_text(encoding)(candidate) / length
             }
         }
     }

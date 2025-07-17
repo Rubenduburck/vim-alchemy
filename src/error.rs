@@ -3,9 +3,6 @@ pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("neovim_lib error: {0}")]
-    Neovim(#[from] neovim_lib::CallError),
-
     #[error("Encode error: {0}")]
     Encode(#[from] crate::encode::error::Error),
 
@@ -25,8 +22,8 @@ pub enum Error {
     InvalidArgs(String),
 }
 
-impl From<Error> for neovim_lib::Value {
+impl From<Error> for crate::value::Value {
     fn from(e: Error) -> Self {
-        neovim_lib::Value::from(format!("{}", e))
+        crate::value::Value::from(format!("{}", e))
     }
 }

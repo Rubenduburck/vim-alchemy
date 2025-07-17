@@ -10,7 +10,7 @@ use crate::{
     encode::error::Error,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Decoded {
     Array(Vec<Decoded>),
     Bytes(Vec<u8>),

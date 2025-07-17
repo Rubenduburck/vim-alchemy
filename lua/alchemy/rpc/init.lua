@@ -2,101 +2,168 @@ local M = {}
 
 local Config = require("alchemy.config")
 
-M.jobId = 0
+-- Helper function to execute CLI command and parse JSON response
+local function execute_cli(cmd_args)
+	local cmd = vim.list_extend({ Config.options.cli.bin or "vim-alchemy" }, cmd_args)
+	local result = vim.fn.systemlist(cmd)
+	local output = table.concat(result, "\n")
+	
+	-- Check for errors
+	if vim.v.shell_error ~= 0 then
+		error("CLI command failed: " .. output)
+	end
+	
+	-- Parse JSON response
+	local ok, parsed = pcall(vim.json.decode, output)
+	if not ok then
+		error("Failed to parse CLI response: " .. output)
+	end
+	
+	return parsed
+end
 
-M.AlchClassifyAndConvert = "classify_and_convert"
-M.AlchClassify = "classify"
-M.AlchConvert = "convert"
-M.AlchFlatten = "flatten_array"
-M.AlchChunk = "chunk_array"
-M.AlchReverse = "reverse_array"
-M.AlchRotate = "rotate_array"
-M.AlchGenerate = "generate"
-M.AlchRandom = "random"
-M.AlchPadLeft = "pad_left"
-M.AlchPadRight = "pad_right"
-M.AlchStart = "start"
-M.AlchStop = "stop"
-M.AlchClassifyAndHash = "classify_and_hash"
-M.AlchHash = "hash"
-M.AlchSetup = "setup"
+-- Helper to format array arguments
+local function format_array_arg(values)
+	return table.concat(values, ",")
+end
 
 function M.classify_and_convert(opts)
-	return vim.rpcrequest(M.jobId, M.AlchClassifyAndConvert, opts)
+	local args = {
+		"classify-and-convert",
+		"-o", format_array_arg(opts.output_encoding),
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
 function M.classify(opts)
-	return vim.rpcrequest(M.jobId, M.AlchClassify, opts)
+	local args = {
+		"classify",
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
 function M.convert(opts)
-	return vim.rpcrequest(M.jobId, M.AlchConvert, opts)
+	local args = { "convert" }
+	
+	-- Only add input encoding if specified
+	if opts.input_encoding and #opts.input_encoding > 0 then
+		table.insert(args, "-i")
+		table.insert(args, format_array_arg(opts.input_encoding))
+	end
+	
+	table.insert(args, "-o")
+	table.insert(args, format_array_arg(opts.output_encoding))
+	table.insert(args, opts.selection.text)
+	
+	return execute_cli(args)
 end
 
 function M.flatten_array(opts)
-	return vim.rpcrequest(M.jobId, M.AlchFlatten, opts)
+	local args = {
+		"flatten-array",
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
 function M.chunk_array(opts)
-	return vim.rpcrequest(M.jobId, M.AlchChunk, opts)
+	local args = {
+		"chunk-array",
+		"-c", tostring(opts.chunk_count),
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
 function M.reverse_array(opts)
-	return vim.rpcrequest(M.jobId, M.AlchReverse, opts)
+	local args = {
+		"reverse-array",
+		"-d", tostring(opts.depth),
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
 function M.rotate_array(opts)
-	return vim.rpcrequest(M.jobId, M.AlchRotate, opts)
+	local args = {
+		"rotate-array",
+		"-r", tostring(opts.rotation),
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
 function M.generate(opts)
-	return vim.rpcrequest(M.jobId, M.AlchGenerate, opts)
+	local args = {
+		"generate",
+		"-e", opts.encoding,
+		"-b", tostring(opts.bytes)
+	}
+	return execute_cli(args)
 end
 
 function M.random(opts)
-	return vim.rpcrequest(M.jobId, M.AlchRandom, opts)
+	local args = {
+		"random",
+		"-e", opts.encoding,
+		"-b", tostring(opts.bytes)
+	}
+	return execute_cli(args)
 end
 
 function M.pad_left(opts)
-	return vim.rpcrequest(M.jobId, M.AlchPadLeft, opts)
+	local args = {
+		"pad-left",
+		"-p", tostring(opts.padding),
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
 function M.pad_right(opts)
-	return vim.rpcrequest(M.jobId, M.AlchPadRight, opts)
+	local args = {
+		"pad-right",
+		"-p", tostring(opts.padding),
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
 function M.classify_and_hash(opts)
-	return vim.rpcrequest(M.jobId, M.AlchClassifyAndHash, opts)
+	local args = {
+		"classify-and-hash",
+		"-a", format_array_arg(opts.algo),
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
 function M.hash(opts)
-	return vim.rpcrequest(M.jobId, M.AlchHash, opts)
+	local args = {
+		"hash",
+		"-a", format_array_arg(opts.algo),
+		"-i", format_array_arg(opts.input_encoding),
+		opts.selection.text
+	}
+	return execute_cli(args)
 end
 
+-- No-op functions for compatibility
 function M.stopRpc()
-	vim.rpcrequest(M.jobId, "stop")
-	M.jobId = 0
+	-- CLI doesn't need to be stopped
 end
 
 function M.initRpc()
-	if M.jobId == 0 then
-		local jobid = vim.fn.jobstart({ Config.options.rpc.bin }, { rpc = true })
-		return jobid
-	else
-		return M.jobId
-	end
+	-- CLI doesn't need initialization
+	return 1
 end
 
 function M.setup()
-	M.jobId = M.initRpc()
-	local config = {
-		config = {
-			classifier = {
-				available_encodings = Config.options.input_encodings,
-			},
-		},
-	}
-	return vim.rpcrequest(M.jobId, M.AlchSetup, config)
+	-- CLI doesn't need setup
+	-- Config is handled by the Lua plugin
+	return true
 end
 
 return M

@@ -1,219 +1,115 @@
 use std::collections::HashMap;
 
-use regex::{Regex, RegexBuilder};
-
 use crate::encode::encoding::TextEncoding;
 
-pub struct RegexCache {
-    match_cache: RegexMatch,
-    extract_cache: RegexExtract,
+// Include the compile-time generated regex data
+include!(concat!(env!("OUT_DIR"), "/compiled_regexes.rs"));
+
+// Public functions for regex operations
+pub fn extract_common<'a>(get_regex: fn() -> &'static Regex) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
+    move |s: &'a str| {
+        extract_all(get_regex)(s)
+            .into_iter()
+            .fold(HashMap::new(), |mut acc, s| {
+                *acc.entry(s).or_insert(0) += 1;
+                acc
+            })
+            .into_iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(s, _)| s)
+    }
 }
 
-pub struct RegexMatch {
-    base16: Regex,
-    base10: Regex,
-    base64: Regex,
-    array: Regex,
-    base2: Regex,
-    base58: Regex,
+pub fn extract_first<'a>(get_regex: fn() -> &'static Regex) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
+    move |s: &'a str| {
+        let regex = get_regex();
+        regex.find(s).map(|m| m.as_str())
+    }
 }
 
-pub struct RegexExtract {
-    base16: Regex,
-    base10: Regex,
-    base64: Regex,
-    brackets: Regex,
-    base2: Regex,
-    base58: Regex,
-    separators: Regex,
-    array: Regex,
+pub fn extract_longest<'a>(get_regex: fn() -> &'static Regex) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
+    move |s: &'a str| {
+        get_regex()
+            .find_iter(s)
+            .max_by_key(|m| m.len())
+            .map(|m| m.as_str())
+    }
 }
 
-fn init_regex(case_insensitive: bool, pattern: &str) -> Regex {
-    RegexBuilder::new(pattern)
-        .case_insensitive(case_insensitive)
-        .build()
-        .expect("could not build regex")
+pub fn extract_all<'a>(get_regex: fn() -> &'static Regex) -> impl 'a + Fn(&'a str) -> Vec<&'a str> {
+    move |s: &'a str| {
+        get_regex()
+            .find_iter(s)
+            .map(|m| m.as_str())
+            .collect()
+    }
 }
 
-impl RegexCache {
-    pub fn new() -> Self {
-        Self {
-            match_cache: RegexMatch::new(),
-            extract_cache: RegexExtract::new(),
+pub fn match_count<'a>(get_regex: fn() -> &'static Regex) -> impl 'a + Fn(&'a str) -> usize {
+    move |s: &'a str| get_regex().find_iter(s).count()
+}
+
+pub fn match_length<'a>(get_regex: fn() -> &'static Regex) -> impl 'a + Fn(&'a str) -> usize {
+    move |s: &'a str| {
+        get_regex()
+            .find_iter(s)
+            .map(|m| m.len())
+            .sum()
+    }
+}
+
+pub fn match_base(base: i32) -> impl Fn(&str) -> usize {
+    move |s: &str| {
+        let get_regex = match base {
+            2 => get_match_base2,
+            10 => get_match_base10,
+            16 => get_match_base16,
+            58 => get_match_base58,
+            64 => get_match_base64,
+            _ => get_match_base10,
+        };
+        match_length(get_regex)(s)
+    }
+}
+
+pub fn extract_base(base: i32) -> impl Fn(&str) -> Option<&str> {
+    move |s: &str| {
+        let get_regex = match base {
+            2 => get_extract_base2,
+            10 => get_extract_base10,
+            16 => get_extract_base16,
+            58 => get_extract_base58,
+            64 => get_extract_base64,
+            _ => get_extract_base10,
+        };
+        extract_longest(get_regex)(s)
+    }
+}
+
+pub fn match_text<'a>(encoding: &TextEncoding) -> impl 'a + Fn(&'a str) -> usize {
+    match encoding {
+        TextEncoding::Utf(8) | TextEncoding::Ascii => {
+            |s: &'a str| s.chars().filter(|c| c.is_ascii()).count()
         }
-    }
-
-    pub fn extract_common<'a>(re: &'a Regex) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
-        move |s: &'a str| {
-            Self::extract_all(re)(s)
-                .into_iter()
-                .fold(HashMap::new(), |mut acc, s| {
-                    *acc.entry(s).or_insert(0) += 1;
-                    acc
-                })
-                .into_iter()
-                .max_by_key(|(_, count)| *count)
-                .map(|(s, _)| s)
-        }
-    }
-
-    pub fn extract_first<'a>(re: &'a Regex) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
-        move |s: &'a str| re.find(s).map(|s| s.as_str())
-    }
-
-    pub fn extract_longest<'a>(re: &'a Regex) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
-        move |s: &'a str| re.find_iter(s).max_by_key(|s| s.len()).map(|s| s.as_str())
-    }
-
-    pub fn extract_all<'a>(re: &'a Regex) -> impl 'a + Fn(&'a str) -> Vec<&'a str> {
-        move |s: &'a str| re.find_iter(s).map(|s| s.as_str()).collect()
-    }
-
-    pub fn match_count<'a>(re: &'a Regex) -> impl 'a + Fn(&'a str) -> usize {
-        move |s: &'a str| re.find_iter(s).count()
-    }
-
-    pub fn match_length<'a>(re: &'a Regex) -> impl 'a + Fn(&'a str) -> usize {
-        move |s: &'a str| re.find_iter(s).map(|s| s.as_str().len()).sum()
-    }
-
-    pub fn match_base<'a>(&'a self, base: i32) -> impl 'a + Fn(&'a str) -> usize {
-        Self::match_length(self.match_cache.base(base))
-    }
-
-    pub fn extract_base<'a>(&'a self, base: i32) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
-        Self::extract_longest(self.extract_cache.base(base))
-    }
-
-    pub fn match_text<'a>(&'a self, encoding: &TextEncoding) -> impl 'a + Fn(&'a str) -> usize {
-        match encoding {
-            TextEncoding::Utf(8) | TextEncoding::Ascii => {
-                |s: &'a str| s.chars().filter(|c| c.is_ascii()).count()
-            }
-            TextEncoding::Utf(16) => |s: &'a str| s.len(),
-            _ => |_: &'a str| 0,
-        }
-    }
-
-    pub fn match_array<'a>(&'a self) -> impl 'a + Fn(&'a str) -> usize {
-        Self::match_count(&self.match_cache.array)
-    }
-
-    pub fn extract_brackets<'a>(&'a self) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
-        Self::extract_common(&self.extract_cache.brackets)
-    }
-
-    pub fn extract_first_brackets<'a>(&'a self) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
-        Self::extract_first(&self.extract_cache.brackets)
-    }
-
-    pub fn extract_separators<'a>(&'a self) -> impl 'a + Fn(&'a str) -> Option<&'a str> {
-        Self::extract_common(&self.extract_cache.separators)
+        TextEncoding::Utf(16) => |s: &'a str| s.len(),
+        _ => |_: &'a str| 0,
     }
 }
 
-impl Default for RegexCache {
-    fn default() -> Self {
-        Self::new()
-    }
+pub fn match_array() -> impl Fn(&str) -> usize {
+    |s: &str| match_count(get_match_array)(s)
 }
 
-impl RegexMatch {
-    const BASE_64: &'static str = r"[A-Za-z0-9+/]+={0,2}";
-    const BASE_58: &'static str =
-        r"^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$";
-    const BASE_16: &'static str = r"(0x)?[0-9a-f]+";
-    const BASE_10: &'static str = r"[0-9]+";
-    const BASE_2: &'static str = r"(0b)?[01]+";
-    const ARRAY: &'static str = r"(.+)([\s*,]\s*.+)";
-
-    pub fn new() -> Self {
-        Self {
-            base2: init_regex(true, Self::BASE_2),
-            base16: init_regex(true, Self::BASE_16),
-            base10: init_regex(false, Self::BASE_10),
-            base58: init_regex(false, Self::BASE_58),
-            base64: init_regex(false, Self::BASE_64),
-
-            array: init_regex(false, Self::ARRAY),
-        }
-    }
-
-    pub fn base(&self, base: i32) -> &Regex {
-        match base {
-            2 => &self.base2,
-            10 => &self.base10,
-            16 => &self.base16,
-            58 => &self.base58,
-            64 => &self.base64,
-            _ => &self.base10,
-        }
-    }
-
-    pub fn array(&self) -> &Regex {
-        &self.array
-    }
+pub fn extract_brackets() -> impl Fn(&str) -> Option<&str> {
+    |s: &str| extract_common(get_extract_brackets)(s)
 }
 
-impl Default for RegexMatch {
-    fn default() -> Self {
-        Self::new()
-    }
+pub fn extract_first_brackets() -> impl Fn(&str) -> Option<&str> {
+    |s: &str| extract_first(get_extract_brackets)(s)
 }
 
-impl RegexExtract {
-    const BASE_64: &'static str = r"[A-Za-z0-9+/]+";
-    const BASE_58: &'static str =
-        r"^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$";
-    const BASE_16: &'static str = r"[0-9a-f]+";
-    const BASE_10: &'static str = r"[0-9]+";
-    const BASE_2: &'static str = r"[01]+";
-    const BRACKETS: &'static str = r"[<\[\(\{\}\)\]>]";
-    const SEPARATORS: &'static str = r"[\s,]\s*";
-    const ARRAY: &'static str = r"(.+?)(?:[\s,]+|$)";
-
-    pub fn new() -> Self {
-        Self {
-            base2: init_regex(true, Self::BASE_2),
-            base16: init_regex(true, Self::BASE_16),
-            base10: init_regex(false, Self::BASE_10),
-            base58: init_regex(false, Self::BASE_58),
-            base64: init_regex(false, Self::BASE_64),
-            brackets: init_regex(false, Self::BRACKETS),
-            separators: init_regex(false, Self::SEPARATORS),
-            array: init_regex(false, Self::ARRAY),
-        }
-    }
-
-    pub fn base(&self, base: i32) -> &Regex {
-        match base {
-            2 => &self.base2,
-            10 => &self.base10,
-            16 => &self.base16,
-            58 => &self.base58,
-            64 => &self.base64,
-            _ => &self.base10,
-        }
-    }
-
-    pub fn brackets(&self) -> &Regex {
-        &self.brackets
-    }
-
-    pub fn separators(&self) -> &Regex {
-        &self.separators
-    }
-
-    pub fn array(&self) -> &Regex {
-        &self.array
-    }
-}
-
-impl Default for RegexExtract {
-    fn default() -> Self {
-        Self::new()
-    }
+pub fn extract_separators() -> impl Fn(&str) -> Option<&str> {
+    |s: &str| extract_common(get_extract_separators)(s)
 }
 
 #[cfg(test)]
@@ -222,21 +118,19 @@ mod tests {
 
     #[test]
     fn test_regex_match() {
-        let cache = RegexCache::new();
-        assert_eq!(cache.match_base(2)("0b1010"), 6);
-        assert_eq!(cache.match_base(10)("1010"), 4);
-        assert_eq!(cache.match_base(16)("0x1010"), 6);
-        assert_eq!(cache.match_base(58)("1A"), 2);
-        assert_eq!(cache.match_base(64)("aGVsbG8="), 8);
+        assert_eq!(match_base(2)("0b1010"), 6);
+        assert_eq!(match_base(10)("1010"), 4);
+        assert_eq!(match_base(16)("0x1010"), 6);
+        assert_eq!(match_base(58)("1A"), 2);
+        assert_eq!(match_base(64)("aGVsbG8="), 8);
     }
 
     #[test]
     fn test_regex_extract() {
-        let cache = RegexCache::new();
-        assert_eq!(cache.extract_base(2)("0b1010").unwrap(), "1010");
-        assert_eq!(cache.extract_base(10)("1010").unwrap(), "1010");
-        assert_eq!(cache.extract_base(16)("0x1010").unwrap(), "1010");
-        assert_eq!(cache.extract_base(58)("1A").unwrap(), "1A");
-        assert_eq!(cache.extract_base(64)("aGVsbG8=").unwrap(), "aGVsbG8");
+        assert_eq!(extract_base(2)("0b1010").unwrap(), "1010");
+        assert_eq!(extract_base(10)("1010").unwrap(), "1010");
+        assert_eq!(extract_base(16)("0x1010").unwrap(), "1010");
+        assert_eq!(extract_base(58)("1A").unwrap(), "1A");
+        assert_eq!(extract_base(64)("aGVsbG8=").unwrap(), "aGVsbG8");
     }
 }

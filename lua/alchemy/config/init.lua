@@ -3,10 +3,10 @@ local M = {}
 
 function M.defaults()
 	local dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
-	local bin = dir .. "/../../../bin/vim-alchemy"
+	local bin = dir .. "/../../../target/release/vim-alchemy"
 	---@class AlchemyConfig
 	local defaults = {
-		rpc = {
+		cli = {
 			bin = bin,
 		},
 		hashers = {
@@ -100,14 +100,15 @@ function M.setup(options)
 
 	require("alchemy.commands").setup()
 
-	local Rpc = require("alchemy.rpc")
-	local resp = Rpc.setup()
-	if not resp then
-		vim.notify("Alchemy: Could not start RPC server", vim.log.levels.ERROR)
+	-- Check if CLI binary exists
+	local cli_bin = M.options.cli.bin
+	if vim.fn.executable(cli_bin) == 0 then
+		vim.notify("Alchemy: CLI binary not found at " .. cli_bin, vim.log.levels.ERROR)
+		M._running = false
 	else
-		vim.notify("Alchemy: RPC server started", vim.log.levels.DEBUG)
+		vim.notify("Alchemy: Using CLI at " .. cli_bin, vim.log.levels.DEBUG)
+		M._running = true
 	end
-	M._running = true
 end
 
 return M
