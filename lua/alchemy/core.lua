@@ -143,10 +143,10 @@ end
 
 -- Convert with explicit input/output encodings
 function M.convert(text, input_encoding, output_encoding)
-	local args = { "convert", "--to", output_encoding }
+	local args = { "convert", "-o", output_encoding }
 
 	if input_encoding then
-		table.insert(args, "--from")
+		table.insert(args, "-i")
 		table.insert(args, input_encoding)
 	end
 
@@ -157,7 +157,7 @@ end
 
 -- Auto-classify and convert (no input encoding specified)
 function M.classify_and_convert(text, output_encoding)
-	local args = { "convert", "--to", output_encoding, text }
+	local args = { "convert", "-o", output_encoding, text }
 	return M.execute_cli(args, false) -- Convert returns plain text, not JSON
 end
 
