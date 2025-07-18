@@ -10,21 +10,6 @@ M.defaults = {
     bin = "alchemy",  -- Path to alchemy binary
   },
   
-  -- UI configuration
-  ui = {
-    -- Window transparency (0-100)
-    winblend = 10,
-    
-    -- Border style: 'single', 'double', 'rounded', 'solid'
-    border = "single",
-    
-    -- Enable icons (requires a Nerd Font)
-    icons = true,
-    
-    -- Animation speed (ms)
-    animation_speed = 150,
-  },
-  
   -- Default keymaps enabled
   default_keymaps = true,
 }

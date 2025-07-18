@@ -24,12 +24,8 @@ vim-alchemy is a Neovim plugin that provides seamless integration with the [alch
     "rubenduburck/vim-alchemy",
     event = "VeryLazy",
     build = "make install",
-    opts = {
-        -- Optional: disable default keymaps
-        -- default_keymaps = false
-    },
-    config = function(_, opts)
-        require("alchemy").setup(opts)
+    config = function()
+        require("alchemy").setup()
     end,
 }
 ```
@@ -59,14 +55,6 @@ require('alchemy').setup({
     -- Path to alchemy binary (auto-detected by default)
     cli = {
         bin = "alchemy",  -- or "/path/to/alchemy"
-    },
-    
-    -- UI settings
-    ui = {
-        winblend = 10,        -- Window transparency (0-100)
-        border = "single",    -- Border style: 'single', 'double', 'rounded', 'solid'
-        icons = true,         -- Enable icons (requires Nerd Font)
-        animation_speed = 150, -- Animation speed in ms
     },
     
     -- Enable default keymaps (default: true)
