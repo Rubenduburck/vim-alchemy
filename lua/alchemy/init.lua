@@ -10,6 +10,19 @@ local Telescope = require("alchemy.telescope")
 function M.setup(opts)
 	opts = opts or {}
 	require("alchemy.config").setup(opts)
+	
+	-- Silently verify installation
+	local version = require("alchemy.version")
+	if not version.verify_installation() then
+		-- Only show a message if the binary is missing
+		vim.defer_fn(function()
+			vim.notify(
+				"vim-alchemy: alchemy binary not found. Run :checkhealth alchemy for more info.",
+				vim.log.levels.WARN
+			)
+		end, 100)
+	end
+	
 	M.create_commands()
 	
 	-- Create keymaps unless explicitly disabled (default: true)
@@ -189,6 +202,7 @@ function M.create_commands()
 			return { "hex", "base64", "base58", "bin", "int", "utf8", "ascii" }
 		end,
 	})
+	
 end
 
 -- Create key mappings (optional, users can set these themselves)

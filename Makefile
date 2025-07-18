@@ -26,14 +26,22 @@ else
 endif
 
 # GitHub repository and release settings
-REPO := Rubenduburck/vim-alchemy
+REPO := rubenduburck/alchemy
 BINARY_NAME := alchemy-$(RELEASE_ARCH)-$(RELEASE_OS)$(BINARY_EXT)
 BIN_DIR := $(shell pwd)/bin
 INSTALLED_BINARY := $(BIN_DIR)/alchemy$(BINARY_EXT)
 
-# Get latest release tag from GitHub API
-LATEST_TAG := $(shell curl -s https://api.github.com/repos/$(REPO)/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-DOWNLOAD_URL := https://github.com/$(REPO)/releases/download/$(LATEST_TAG)/$(BINARY_NAME)
+# Read the required alchemy version from .alchemy-version file
+REQUIRED_VERSION := $(shell cat .alchemy-version 2>/dev/null || echo "latest")
+
+# Determine download URL
+ifeq ($(REQUIRED_VERSION), latest)
+	VERSION_TAG := $(shell curl -s https://api.github.com/repos/$(REPO)/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+else
+	VERSION_TAG := $(REQUIRED_VERSION)
+endif
+
+DOWNLOAD_URL := https://github.com/$(REPO)/releases/download/$(VERSION_TAG)/$(BINARY_NAME)
 
 all: install
 
@@ -41,46 +49,21 @@ $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
 install: $(BIN_DIR)
-	@echo "Detected platform: $(RELEASE_OS)-$(RELEASE_ARCH)"
-	@echo "Downloading latest release: $(LATEST_TAG)"
-	@echo "From: $(DOWNLOAD_URL)"
-	curl -L -f $(DOWNLOAD_URL) -o $(INSTALLED_BINARY)
-	chmod +x $(INSTALLED_BINARY)
-	@echo "✅ alchemy binary installed to $(INSTALLED_BINARY)"
+	@echo "Installing alchemy for $(RELEASE_OS)-$(RELEASE_ARCH)..."
+	@curl -L -f $(DOWNLOAD_URL) -o $(INSTALLED_BINARY) 2>/dev/null || \
+		(echo "Failed to download alchemy. Please check your internet connection." && exit 1)
+	@chmod +x $(INSTALLED_BINARY)
+	@echo "✅ Installation complete!"
 
 clean:
 	rm -rf $(BIN_DIR)
 
-# Build from source (development)
-build:
-	CFLAGS="-std=gnu17" CXXFLAGS="-std=gnu++17" cargo build --release
-	mkdir -p $(BIN_DIR)
-	cp target/release/alchemy$(BINARY_EXT) $(INSTALLED_BINARY)
-	@echo "✅ alchemy binary built and installed to $(INSTALLED_BINARY)"
-
-# Build for a specific target architecture
-# Usage: make build-target TARGET=aarch64-unknown-linux-gnu
-build-target:
-	@if [ -z "$(TARGET)" ]; then \
-		echo "❌ TARGET not specified. Usage: make build-target TARGET=<target-triple>"; \
-		echo "Available targets:"; \
-		echo "  - x86_64-unknown-linux-gnu"; \
-		echo "  - aarch64-unknown-linux-gnu"; \
-		echo "  - x86_64-apple-darwin"; \
-		echo "  - aarch64-apple-darwin"; \
-		exit 1; \
-	fi
-	CFLAGS="-std=gnu17" CXXFLAGS="-std=gnu++17" cargo build --release --target $(TARGET)
-	@echo "✅ Built for target: $(TARGET)"
-	@echo "Binary location: target/$(TARGET)/release/alchemy$(BINARY_EXT)"
-
-# Check if binary is installed and working
+# Check if binary is installed and working (silent unless there's an issue)
 check:
 	@if [ -f "$(INSTALLED_BINARY)" ]; then \
-		echo "✅ alchemy binary found at $(INSTALLED_BINARY)"; \
-		$(INSTALLED_BINARY) --help > /dev/null 2>&1 && echo "✅ alchemy binary is working" || echo "❌ alchemy binary is not working"; \
+		$(INSTALLED_BINARY) --help > /dev/null 2>&1 || echo "❌ alchemy binary is not working properly"; \
 	else \
-		echo "❌ alchemy binary not found. Run 'make install' first."; \
+		echo "❌ alchemy not found. Plugin will download it automatically on next use."; \
 	fi
 
-.PHONY: all install clean build check build-target
+.PHONY: all install clean check

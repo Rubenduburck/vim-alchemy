@@ -124,7 +124,11 @@ function M.execute_cli(cmd_args, expect_json)
 	local output = table.concat(result, "\n")
 
 	if vim.v.shell_error ~= 0 then
-		error("CLI command failed: " .. output)
+		if output:match("command not found") or output:match("No such file") then
+			error("alchemy binary not found. Please run 'make install' in the plugin directory.")
+		else
+			error("CLI command failed: " .. output)
+		end
 	end
 
 	if expect_json then

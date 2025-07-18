@@ -1,29 +1,32 @@
-### ALCHEMY
+# vim-alchemy
 
-> Convert stuff into other stuff
+> Neovim plugin for the alchemy data transformation tool
 
 ## Description
 
-Alchemy is a powerful data manipulation tool for Vim/Neovim. It provides a CLI tool for encoding, decoding, hashing, and various data transformations, integrated seamlessly with your editor through a Lua plugin.
+vim-alchemy is a Neovim plugin that provides seamless integration with the [alchemy](https://github.com/rubenduburck/alchemy) command-line tool. It allows you to perform encoding conversions, hashing, array operations, and more directly within your editor.
 
-## Architecture
+## Features
 
-Alchemy consists of two parts:
-1. **CLI Tool**: A standalone binary written in Rust that handles all data transformations
-2. **Neovim Plugin**: A Lua plugin that provides editor integration and calls the CLI
+- **Visual Mode Support**: Convert selected text with a single command
+- **Smart Detection**: Automatically detects input encoding when possible
+- **Interactive UI**: Beautiful selection menus and preview windows
+- **Telescope Integration**: Search and filter through available conversions
+- **Extensive Operations**: Encoding, decoding, hashing, array manipulation, and more
+- **Customizable Keymaps**: Default keymaps with `<leader>al` prefix
 
 ## Installation
 
-### With lazy.nvim
+### With lazy.nvim (Recommended)
 
 ```lua
 {
-    "rubenduburck/alchemy",
+    "rubenduburck/vim-alchemy",
     event = "VeryLazy",
-    build = "make install",  -- Automatically downloads the correct binary for your platform
+    build = "make install",
     opts = {
-        -- Optional: disable default keymaps (default: true)
-        default_keymaps = false
+        -- Optional: disable default keymaps
+        -- default_keymaps = false
     },
     config = function(_, opts)
         require("alchemy").setup(opts)
@@ -31,192 +34,155 @@ Alchemy consists of two parts:
 }
 ```
 
-### Manual Installation
-
-1. **Automatic (recommended)**: `make install` - Downloads the correct binary for your platform
-2. **Manual**: Download from [releases](https://github.com/rubenduburck/alchemy/releases) and place in PATH
-3. **Build from source**: `make build` - Requires Rust toolchain
-
-### Plugin Setup
+### With packer.nvim
 
 ```lua
--- Basic setup (includes default keymaps and auto-detects binary)
-require("alchemy").setup()
-
--- Setup without keymaps
-require("alchemy").setup({
-    default_keymaps = false
-})
-
--- Setup with custom CLI binary path
-require("alchemy").setup({
-    cli = { bin = "/path/to/alchemy" }
-})
+use {
+    'rubenduburck/vim-alchemy',
+    config = function()
+        require('alchemy').setup()
+    end,
+    run = 'make install'
+}
 ```
 
-The plugin automatically looks for the `alchemy` binary in:
-1. `./bin/alchemy` (downloaded by `make install`)
-2. Your PATH
-3. Common installation locations
+### Manual Installation
 
-## CLI Usage
-
-The CLI tool can be used standalone for data manipulation:
-
-```bash
-# Classify input encoding
-alchemy classify "0x1234"
-
-# Convert between encodings
-alchemy convert --from hex --to base64 "0x1234"
-
-# Classify and convert automatically
-alchemy convert --to base64 "0x1234"
-
-# Hash data
-alchemy hash sha256 "0x1234"
-alchemy chunk-array -c 2 "[1,2,3,4,5,6]"
-alchemy reverse-array -d 1 "[1,2,3,4]"
-alchemy rotate-array -r 2 "[1,2,3,4]"
-
-# Generate data
-alchemy generate -e hex -b 32
-alchemy random -e base64 -b 16
-
-# Padding
-alchemy pad-left -p 32 "0x1234"
-alchemy pad-right -p 32 "0x1234"
-```
-
-## Neovim Usage
-
-### Convert
-```vim
-    :Alch classify_and_convert {optional:output_encoding}
-    :Alch convert {input_encoding} {optional:output_encoding}
-```
-
-Converts visual selection from input to output encoding.
-classify_and_convert will guess the input encoding.
-Set `input_encoding` to `auto` to automatically detect the input encoding.
-Set `input_encoding` to `select` to select the encoding from a list of options.
-Set `output_encoding` to `select` to select the encoding from a list of options.
-
-### Auto-detection
-The plugin will do its best to figure out what your input is.
-Sometimes it needs a little help, e.g. if you have hex bytes without the 0x prefix.
-Simply highlight the text you want to convert and run the command with the desired encoding.
-
-## Supported Encodings
-
-* `hex` - Hexadecimal (with or without 0x prefix)
-* `bytes` - Byte arrays like [0x12, 0x34]
-* `int` - Decimal integers
-* `bin` - Binary (0b prefix optional)
-* `base{2-36}` - Base N encoding
-* `base58` - Base58 encoding
-* `base64` - Base64 encoding  
-* `utf8` - UTF-8 text
-* `utf16` - UTF-16 text
-* `ascii` - ASCII text
-
-## Supported Hash Algorithms
-
-* `md5`
-* `sha1`
-* `sha256`, `sha384`, `sha512`
-* `sha3-256`, `sha3-384`, `sha3-512`
-* `keccak256`, `keccak512`
-* `blake2b`, `blake2s`
+1. Clone this repository to your Neovim configuration directory
+2. Run `make install` to download the alchemy binary
+3. Add `require('alchemy').setup()` to your init.lua
 
 ## Configuration
 
 ```lua
 require('alchemy').setup({
+    -- Path to alchemy binary (auto-detected by default)
     cli = {
-        bin = "alchemy", -- Path to CLI binary
+        bin = "alchemy",  -- or "/path/to/alchemy"
     },
-    hashers = {
-        "md5", "sha256", "sha512", -- etc
+    
+    -- UI settings
+    ui = {
+        winblend = 10,        -- Window transparency (0-100)
+        border = "single",    -- Border style: 'single', 'double', 'rounded', 'solid'
+        icons = true,         -- Enable icons (requires Nerd Font)
+        animation_speed = 150, -- Animation speed in ms
     },
-    input_encodings = {
-        "int", "hex", "bin", "base58", "base64", -- etc
-    },
-    output_encodings = {
-        "int", "hex", "bin", "bytes", "[int]", -- etc
-    },
+    
+    -- Enable default keymaps (default: true)
+    default_keymaps = true,
 })
 ```
 
-## Development
+## Usage
 
-### Building from source
+### Commands
 
-```bash
-# Clone the repository
-git clone https://github.com/rubenduburck/alchemy
-cd alchemy
+All commands work in both normal mode (on word under cursor) and visual mode (on selection).
 
-# Build the CLI tool
-cargo build --release
+#### Main Commands
 
-# The binary will be at target/release/alchemy
+- `:AlchConvert [encoding]` - Convert text to specified encoding (prompts if not specified)
+- `:AlchExplore` - Open interactive explorer to browse all conversions
+- `:AlchClassify` - Show all possible classifications for selected text
+
+#### Quick Conversions
+
+- `:AlchToHex` - Convert to hexadecimal
+- `:AlchToInt` - Convert to integer
+- `:AlchToBase64` - Convert to base64
+- `:AlchToBase58` - Convert to base58
+- `:AlchToBin` - Convert to binary
+- `:AlchToUtf8` - Convert to UTF-8
+- `:AlchToAscii` - Convert to ASCII
+- `:AlchToBytes` - Convert to byte array
+
+#### Array Operations
+
+- `:AlchFlatten` - Flatten nested arrays
+- `:AlchChunk [size]` - Split array into chunks
+- `:AlchRotate [amount]` - Rotate array elements
+- `:AlchReverse [depth]` - Reverse array at specified depth
+
+#### Other Operations
+
+- `:AlchHash [algorithm]` - Hash selected text (prompts for algorithm)
+- `:AlchGenerate [format] [length]` - Generate random data
+- `:AlchRandom [format] [length]` - Generate cryptographically secure random data
+- `:AlchPadLeft [size]` - Pad data on the left
+- `:AlchPadRight [size]` - Pad data on the right
+
+### Default Keymaps
+
+All keymaps use the `<leader>al` prefix:
+
+| Keymap | Description | Command |
+|--------|-------------|---------|
+| `<leader>alc` | Convert (prompts for format) | `:AlchConvert` |
+| `<leader>ale` | Explore conversions | `:AlchExplore` |
+| `<leader>alC` | Classify input | `:AlchClassify` |
+| `<leader>alh` | To Hex | `:AlchToHex` |
+| `<leader>ali` | To Int | `:AlchToInt` |
+| `<leader>al6` | To Base64 | `:AlchToBase64` |
+| `<leader>al5` | To Base58 | `:AlchToBase58` |
+| `<leader>alb` | To Binary | `:AlchToBin` |
+| `<leader>alu` | To UTF-8 | `:AlchToUtf8` |
+| `<leader>alA` | To ASCII | `:AlchToAscii` |
+| `<leader>alH` | Hash | `:AlchHash` |
+| `<leader>al2` | SHA256 Hash | `:AlchHash sha256` |
+| `<leader>alf` | Flatten Array | `:AlchFlatten` |
+| `<leader>alk` | Chunk Array | `:AlchChunk` |
+| `<leader>alr` | Rotate Array | `:AlchRotate` |
+| `<leader>alg` | Generate Data | `:AlchGenerate` |
+| `<leader>alR` | Random Data | `:AlchRandom` |
+| `<leader>alt` | Telescope Conversions | Telescope picker |
+| `<leader>alT` | Telescope Classifications | Telescope picker |
+
+### Examples
+
+```vim
+" Convert hex to base64
+" 1. Select text: 0x48656c6c6f
+" 2. Press <leader>al6 or run :AlchToBase64
+" Result: SGVsbG8=
+
+" Hash text with SHA256
+" 1. Select text: hello world
+" 2. Press <leader>al2 or run :AlchHash sha256
+" Result: b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9
+
+" Explore all possible conversions
+" 1. Select any text
+" 2. Press <leader>ale or run :AlchExplore
+" 3. Navigate through classifications and conversions
 ```
 
-### Build Requirements
+## Telescope Integration
 
-This project uses the `rug` library for arbitrary precision arithmetic, which requires:
-- GMP (GNU Multiple Precision Arithmetic Library)
-- MPFR (Multiple Precision Floating-Point Reliable Library)
-- C compiler with GNU17 support
+If you have [telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) installed, you can use:
 
-**Important**: The project is configured to compile with `-std=gnu17` to ensure compatibility with the rug dependency.
+- `<leader>alt` - Search through available conversions
+- `<leader>alT` - Browse classifications for selected text
 
-#### Installing dependencies:
+## Troubleshooting
 
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install libgmp-dev libmpfr-dev libmpc-dev
+### Binary Not Found
+
+If you get an error about the alchemy binary not being found:
+
+1. Run `make install` in the plugin directory
+2. Ensure the binary is in your PATH or configure the path:
+
+```lua
+require('alchemy').setup({
+    cli = { bin = "/full/path/to/alchemy" }
+})
 ```
 
-**macOS:**
-```bash
-brew install gmp mpfr
-```
+## Requirements
 
-**Windows:**
-Not supported due to GMP/MPFR dependency requirements.
-
-### Cross-compilation
-
-To build for different architectures:
-
-```bash
-# Build for specific target
-make build-target TARGET=aarch64-unknown-linux-gnu
-
-# Available targets:
-# - x86_64-unknown-linux-gnu
-# - aarch64-unknown-linux-gnu
-# - x86_64-apple-darwin
-# - aarch64-apple-darwin
-```
-
-### Supported Architectures
-
-Pre-built binaries are available for:
-- **Linux**: x86_64, aarch64
-- **macOS**: x86_64 (Intel), aarch64 (Apple Silicon)
-
-**Windows is not supported** due to the `rug` dependency requiring GMP/MPFR libraries which are difficult to build on Windows with MSVC.
-
-**Note**: Architecture support is limited by the `rug` dependency. If rug doesn't support a particular architecture, we cannot provide builds for it.
-
-### Running tests
-
-```bash
-cargo test
-```
+- Neovim 0.8+ (for proper Lua support)
+- Optional: [telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) for enhanced UI
 
 ## License
 
