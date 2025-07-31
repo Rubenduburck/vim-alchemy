@@ -4,7 +4,7 @@ local M = {}
 function M.defaults()
 	local plugin_dir = debug.getinfo(1, "S").source:sub(2):match("(.*/)")
 	if plugin_dir then
-		plugin_dir = plugin_dir .. "/../../../"  -- Go up to plugin root
+		plugin_dir = vim.fn.fnamemodify(plugin_dir .. "/../../../", ":p")  -- Go up to plugin root and normalize
 	end
 	
 	-- Try to find binary in various locations

@@ -61,7 +61,12 @@ clean:
 # Check if binary is installed and working (silent unless there's an issue)
 check:
 	@if [ -f "$(INSTALLED_BINARY)" ]; then \
-		$(INSTALLED_BINARY) --help > /dev/null 2>&1 || echo "❌ alchemy binary is not working properly"; \
+		if $(INSTALLED_BINARY) --help > /dev/null 2>&1; then \
+			echo "✅ Plugin-local alchemy binary found at: $(INSTALLED_BINARY)"; \
+			echo "   Version: $$($(INSTALLED_BINARY) --version)"; \
+		else \
+			echo "❌ alchemy binary is not working properly"; \
+		fi \
 	else \
 		echo "❌ alchemy not found. Plugin will download it automatically on next use."; \
 	fi

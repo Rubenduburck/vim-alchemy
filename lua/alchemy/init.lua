@@ -203,6 +203,15 @@ function M.create_commands()
 		end,
 	})
 	
+	-- Debug command to show which binary is being used
+	vim.api.nvim_create_user_command("AlchDebug", function()
+		local Config = require("alchemy.config")
+		local bin_path = Config.options.cli.bin
+		vim.notify("vim-alchemy using binary: " .. bin_path, vim.log.levels.INFO)
+	end, {
+		desc = "Show which alchemy binary is being used",
+	})
+	
 end
 
 -- Create key mappings (optional, users can set these themselves)
