@@ -175,7 +175,7 @@ function M.create_commands()
 		range = true,
 		desc = "Hash selected text with specified algorithm",
 		complete = function(_, _, _)
-			return { "sha256", "sha512", "md5", "blake2", "keccak256" }
+			return { "sha256", "sha512", "blake2", "keccak256" }
 		end,
 	})
 

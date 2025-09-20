@@ -3,6 +3,8 @@
 
 local M = {}
 
+local UI = require("alchemy.ui")
+
 -- Format a key-value pair for display
 local function format_item(key, value)
 	if type(value) == "table" then
@@ -88,28 +90,27 @@ function M.select_from_results(data, opts, callback)
 		table.insert(items, choice.display)
 	end
 
-	local select_opts = {
-		prompt = opts.prompt or "Select conversion:",
-		format_item = function(item)
-			return item
+	local entries = {}
+	for idx, choice in ipairs(final_choices) do
+		entries[idx] = {
+			text = choice.display,
+			choice = choice,
+			type = choice.type,
+		}
+	end
+
+	UI.create_selector(entries, {
+		title = opts.prompt or "Select conversion:",
+		selection = opts.selection,
+		on_select = function(entry)
+			local selected_choice = entry.choice
+			if selected_choice.is_nested then
+				M.select_from_results(selected_choice.value, opts, callback)
+			else
+				callback(selected_choice.value, selected_choice.key)
+			end
 		end,
-		kind = "alchemy_conversion",
-	}
-
-	vim.ui.select(items, select_opts, function(selected_item, idx)
-		if not selected_item or not idx then
-			return -- User cancelled
-		end
-
-		local selected_choice = final_choices[idx]
-		if selected_choice.is_nested then
-			-- User selected a nested category, show its contents
-			M.select_from_results(selected_choice.value, opts, callback)
-		else
-			-- User selected a final value
-			callback(selected_choice.value, selected_choice.key)
-		end
-	end)
+	})
 end
 
 -- Simple picker for choosing from a list of strings
@@ -126,19 +127,18 @@ function M.select_from_list(items, opts, callback)
 		return
 	end
 
-	local select_opts = {
-		prompt = opts.prompt or "Select option:",
-		format_item = function(item)
-			return tostring(item)
-		end,
-		kind = "alchemy_list",
-	}
+	local entries = {}
+	for idx, item in ipairs(items) do
+		entries[idx] = { text = tostring(item), value = item, index = idx }
+	end
 
-	vim.ui.select(items, select_opts, function(selected_item, idx)
-		if selected_item then
-			callback(selected_item, idx)
-		end
-	end)
+	UI.create_selector(entries, {
+		title = opts.prompt or "Select option:",
+		selection = opts.selection,
+		on_select = function(entry)
+			callback(entry.value, entry.index)
+		end,
+	})
 end
 
 -- Auto-complete style picker - shows options and replaces text on selection
@@ -147,6 +147,7 @@ function M.autocomplete_replace(selection, conversions, opts)
 
 	M.select_from_results(conversions, {
 		prompt = opts.prompt or "Convert to:",
+		selection = selection,
 	}, function(chosen_value, chosen_key)
 		if chosen_value then
 			local Core = require("alchemy.core")
@@ -160,4 +161,3 @@ function M.autocomplete_replace(selection, conversions, opts)
 end
 
 return M
-

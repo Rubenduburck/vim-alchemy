@@ -291,6 +291,7 @@ function M.hash(args)
 		
 		UI.create_selector(algorithms, {
 			title = " 🔐 Select Hash Algorithm ",
+			selection = text_selection,
 			on_select = function(selected_algorithm)
 				Preview.show_conversion_preview(text_selection, function()
 					return Core.execute_cli({ "hash", "-i", "utf8", "-a", selected_algorithm.text, text_selection.text }, false)
@@ -416,4 +417,3 @@ function M.random(args)
 end
 
 return M
-

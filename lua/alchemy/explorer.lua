@@ -61,6 +61,7 @@ function M.explore_conversions(text_selection)
 
 	Picker.select_from_list(display_items, {
 		prompt = "Select input encoding:",
+		selection = text_selection,
 	}, function(selected_display, idx)
 		if not selected_display then
 			return
@@ -149,13 +150,6 @@ function M.show_conversions_for_encoding(text_selection, input_encoding)
 		},
 		{
 			type = "operation",
-			name = "Hash with MD5",
-			action = function()
-				return M.hash_text(text_selection.text, "md5")
-			end,
-		},
-		{
-			type = "operation",
 			name = "Hash with Blake2",
 			action = function()
 				return M.hash_text(text_selection.text, "blake2")
@@ -220,6 +214,7 @@ function M.show_conversions_for_encoding(text_selection, input_encoding)
 	-- Show operation picker
 	Picker.select_from_list(operation_names, {
 		prompt = string.format("Operations for %s:", input_encoding),
+		selection = text_selection,
 	}, function(selected_name, idx)
 		if not selected_name then
 			return
@@ -262,6 +257,7 @@ function M.quick_convert(output_encoding)
 
 		Picker.select_from_list(encodings, {
 			prompt = "Convert to:",
+			selection = text_selection,
 		}, function(selected_encoding)
 			if selected_encoding then
 				M.quick_convert(selected_encoding)
