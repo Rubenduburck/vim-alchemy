@@ -10,7 +10,7 @@ local function ensure_highlight_group()
 	if pcall(vim.api.nvim_get_hl, 0, { name = "AlchemySelectionHighlight" }) then
 		return
 	end
-	vim.api.nvim_set_hl(0, "AlchemySelectionHighlight", { link = "Visual" })
+	vim.api.nvim_set_hl(0, "AlchemySelectionHighlight", { default = true, link = "IncSearch" })
 end
 
 function M.clear_selection_highlight()
@@ -22,12 +22,14 @@ end
 
 function M.highlight_selection(selection)
 	M.clear_selection_highlight()
+	if not selection or not selection.text or selection.text == "" then
+		return
+	end
+
 	if
-		not selection
-		or selection.start_line == nil
+		selection.start_line == nil
 		or selection.start_col == nil
 		or selection.end_line == nil
-		or selection.end_col == nil
 	then
 		return
 	end
@@ -36,20 +38,35 @@ function M.highlight_selection(selection)
 	local bufnr = vim.api.nvim_get_current_buf()
 	selection_state.bufnr = bufnr
 
-	local start_line = selection.start_line
-	local end_line = selection.end_line
-	local start_col = selection.start_col
-	local end_col = selection.end_col
+	local lines = vim.split(selection.text, "\n", { plain = true })
+	if vim.tbl_isempty(lines) then
+		lines = { selection.text }
+	end
 
-	for line = start_line, end_line do
-		local line_start = (line == start_line) and start_col or 0
-		local line_end
-		if line == end_line then
-			line_end = math.max(line_start + 1, end_col)
-		else
-			line_end = -1
+	for idx, line_text in ipairs(lines) do
+		local line_nr = selection.start_line + idx - 1
+		if not vim.api.nvim_buf_is_valid(bufnr) then
+			return
 		end
-		vim.api.nvim_buf_add_highlight(bufnr, selection_ns, "AlchemySelectionHighlight", line, line_start, line_end)
+
+		local line_start = (idx == 1) and selection.start_col or 0
+		local length = vim.fn.strdisplaywidth(line_text)
+		local line_end
+		if idx == 1 then
+			line_end = line_start + length
+		else
+			line_end = length
+		end
+
+		if idx == #lines and line_end == line_start then
+			line_end = line_end + 1
+		end
+
+		if idx > 1 and line_end == 0 then
+			line_end = 1
+		end
+
+		vim.api.nvim_buf_add_highlight(bufnr, selection_ns, "AlchemySelectionHighlight", line_nr, line_start, line_end)
 	end
 end
 
