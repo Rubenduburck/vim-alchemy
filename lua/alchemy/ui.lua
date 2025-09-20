@@ -6,15 +6,15 @@ local M = {}
 -- Create a floating window with proper error handling
 function M.create_float(opts)
 	opts = opts or {}
-	
+
 	-- Calculate dimensions with bounds checking
 	local width = opts.width or math.min(80, vim.o.columns - 4)
 	local height = opts.height or math.min(20, vim.o.lines - 4)
-	
+
 	-- Ensure minimum size
 	width = math.max(width, 10)
 	height = math.max(height, 3)
-	
+
 	-- Calculate position
 	local row, col
 	if opts.cursor_relative then
@@ -22,7 +22,7 @@ function M.create_float(opts)
 		local cursor = vim.api.nvim_win_get_cursor(0)
 		row = cursor[1] - 1 -- Convert to 0-based
 		col = cursor[2]
-		
+
 		-- Adjust if window would go off-screen
 		if row + height > vim.o.lines - 2 then
 			row = vim.o.lines - height - 2
@@ -35,10 +35,10 @@ function M.create_float(opts)
 		row = opts.row or math.floor((vim.o.lines - height) / 2)
 		col = opts.col or math.floor((vim.o.columns - width) / 2)
 	end
-	
+
 	-- Create buffer
 	local buf = vim.api.nvim_create_buf(false, true)
-	
+
 	-- Window options with safe defaults
 	local win_opts = {
 		relative = opts.relative or "editor",
@@ -49,334 +49,399 @@ function M.create_float(opts)
 		style = "minimal",
 		border = opts.border or "single",
 	}
-	
+
 	-- Only add title if supported
 	if opts.title and vim.fn.has("nvim-0.9") == 1 then
 		win_opts.title = opts.title
 		win_opts.title_pos = opts.title_pos or "center"
 	end
-	
+
 	-- Create window with error handling
 	local ok, win = pcall(vim.api.nvim_open_win, buf, false, win_opts)
 	if not ok then
 		vim.api.nvim_buf_delete(buf, { force = true })
 		error("Failed to create window: " .. tostring(win))
 	end
-	
+
 	-- Set window options safely
 	pcall(vim.api.nvim_win_set_option, win, "winblend", opts.winblend or 0)
 	pcall(vim.api.nvim_win_set_option, win, "cursorline", true)
 	pcall(vim.api.nvim_win_set_option, win, "number", false)
 	pcall(vim.api.nvim_win_set_option, win, "relativenumber", false)
-	
+
 	-- Set buffer options
 	vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
 	vim.api.nvim_buf_set_option(buf, "modifiable", opts.modifiable ~= false)
 	vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
-	
-	-- Add close keymaps
+	vim.api.nvim_buf_set_option(buf, "filetype", opts.filetype or "alchemy_float")
+
+	local function close_window()
+		if vim.api.nvim_win_is_valid(win) then
+			vim.api.nvim_win_close(win, true)
+		end
+		if opts.on_close then
+			opts.on_close()
+		end
+	end
+
 	local close_keys = opts.close_keys or { "q", "<Esc>", "<C-c>" }
 	for _, key in ipairs(close_keys) do
-		vim.api.nvim_buf_set_keymap(buf, "n", key, "", {
-			noremap = true,
+		vim.keymap.set("n", key, close_window, {
+			buffer = buf,
+			nowait = true,
 			silent = true,
-			callback = function()
-				if vim.api.nvim_win_is_valid(win) then
-					vim.api.nvim_win_close(win, true)
-				end
-				-- Call cleanup callback if provided
-				if opts.on_close then
-					opts.on_close()
-				end
-			end,
+			desc = "Close alchemy window",
 		})
 	end
-	
+
 	return {
 		buf = buf,
 		win = win,
 		width = width,
 		height = height,
+		close = close_window,
 	}
 end
 
 -- Create a preview window showing before/after
 function M.create_preview(original_text, converted_text, opts)
 	opts = opts or {}
-	
+
+	local function safe_call(cb, ...)
+		if not cb then
+			return
+		end
+		local ok, err = pcall(cb, ...)
+		if not ok then
+			M.notify(tostring(err), vim.log.levels.ERROR)
+		end
+	end
+
+	local previous_win = vim.api.nvim_get_current_win()
+
 	local float = M.create_float({
 		title = opts.title or " 🔄 Conversion Preview ",
 		width = opts.width or math.min(80, vim.o.columns - 10),
 		height = opts.height or math.min(20, vim.o.lines - 5),
 		border = "double",
+		on_close = function()
+			safe_call(opts.on_close)
+			if vim.api.nvim_win_is_valid(previous_win) then
+				vim.api.nvim_set_current_win(previous_win)
+			end
+		end,
 	})
-	
-	-- Create content with nice formatting
+
 	local lines = {
 		"╭─ Original ─╮",
 		"",
 	}
-	
-	-- Add original text (wrapped if needed)
-	local original_lines = M.wrap_text(original_text, float.width - 4)
-	for _, line in ipairs(original_lines) do
+
+	for _, line in ipairs(M.wrap_text(original_text, float.width - 4)) do
 		table.insert(lines, "  " .. line)
 	end
-	
+
 	table.insert(lines, "")
 	table.insert(lines, "╰────────────╯")
 	table.insert(lines, "")
 	table.insert(lines, "╭─ Converted ─╮")
 	table.insert(lines, "")
-	
-	-- Add converted text (wrapped if needed)
-	local converted_lines = M.wrap_text(converted_text, float.width - 4)
-	for _, line in ipairs(converted_lines) do
+
+	for _, line in ipairs(M.wrap_text(converted_text, float.width - 4)) do
 		table.insert(lines, "  " .. line)
 	end
-	
+
 	table.insert(lines, "")
 	table.insert(lines, "╰─────────────╯")
 	table.insert(lines, "")
 	table.insert(lines, "Press Enter to apply, q/Esc to cancel")
-	
-	-- Set content
+
 	vim.api.nvim_buf_set_lines(float.buf, 0, -1, false, lines)
-	
-	-- Syntax highlighting
+	vim.api.nvim_buf_set_option(float.buf, 'modifiable', false)
+
 	vim.api.nvim_buf_call(float.buf, function()
-		-- Highlight headers
-		vim.cmd("syntax match AlchemyHeader /╭─.*─╮/")
-		vim.cmd("syntax match AlchemyHeader /╰─.*─╯/")
-		vim.cmd("highlight AlchemyHeader guifg=#7aa2f7 gui=bold")
-		
-		-- Highlight the instruction line
-		vim.cmd("syntax match AlchemyInstruction /Press Enter.*/")
-		vim.cmd("highlight AlchemyInstruction guifg=#9ece6a gui=italic")
-		
-		-- Highlight the content based on type
-		if opts.original_syntax then
-			-- Apply syntax highlighting for original content
-		end
-		if opts.converted_syntax then
-			-- Apply syntax highlighting for converted content
-		end
+		vim.cmd('syntax match AlchemyHeader /╭─.*─╮/')
+		vim.cmd('syntax match AlchemyHeader /╰─.*─╯/')
+		vim.cmd('highlight AlchemyHeader guifg=#7aa2f7 gui=bold')
+		vim.cmd('syntax match AlchemyInstruction /Press Enter.*/')
+		vim.cmd('highlight AlchemyInstruction guifg=#9ece6a gui=italic')
 	end)
-	
-	-- Add Enter key to apply
-	vim.api.nvim_buf_set_keymap(float.buf, "n", "<CR>", "", {
-		noremap = true,
-		silent = true,
-		callback = function()
-			vim.api.nvim_win_close(float.win, true)
-			if opts.on_confirm then
-				opts.on_confirm()
-			end
-		end,
-	})
-	
-	-- Focus the preview window
+
+	local function apply_result()
+		float.close()
+		safe_call(opts.on_confirm)
+	end
+
+	local function cancel_preview()
+		float.close()
+	end
+
+	local map_opts = { buffer = float.buf, silent = true, nowait = true }
+	vim.keymap.set('n', '<CR>', apply_result, map_opts)
+	vim.keymap.set('n', '<Space>', apply_result, map_opts)
+	vim.keymap.set('n', 'q', cancel_preview, map_opts)
+	vim.keymap.set('n', '<Esc>', cancel_preview, map_opts)
+	vim.keymap.set('n', '<C-c>', cancel_preview, map_opts)
+
 	vim.api.nvim_set_current_win(float.win)
-	
+
 	return float
 end
 
 -- Create a compact floating menu with hjkl navigation
 function M.create_selector(items, opts)
 	opts = opts or {}
-	
-	-- Calculate compact dimensions
-	local max_width = 0
-	for _, item in ipairs(items) do
-		local text = item.text or item.name or tostring(item)
-		max_width = math.max(max_width, #text + 10) -- account for icon and padding
+
+	if not items or vim.tbl_isempty(items) then
+		M.notify(opts.empty_message or "No options available", vim.log.levels.WARN)
+		return nil
 	end
-	
-	local width = math.min(max_width, 50)
-	local height = math.min(#items + 2, 15) -- compact height
-	
-	-- Preview window reference
-	local preview_win = nil
-	
-	-- Cleanup function for preview windows
-	local function cleanup_preview()
-		if preview_win and vim.api.nvim_win_is_valid(preview_win.win) then
-			vim.api.nvim_win_close(preview_win.win, true)
-			preview_win = nil
+
+	local origin_win = vim.api.nvim_get_current_win()
+	local formatted, max_width = {}, 0
+	local max_width_limit = math.max(opts.max_width or math.floor(vim.o.columns * 0.6), 20)
+
+	for idx, item in ipairs(items) do
+		local raw_text = item.text or item.name or tostring(item)
+		local icon = item.icon or M.get_icon_for_type(item.type)
+		local available = math.max(max_width_limit - 6, 10)
+		local display_text = raw_text
+		if vim.fn.strdisplaywidth(raw_text) > available then
+			display_text = vim.fn.strcharpart(raw_text, 0, available - 1) .. '…'
 		end
+		local line = string.format(' %s %s', icon, display_text)
+		formatted[idx] = { item = item, line = line }
+		max_width = math.max(max_width, vim.fn.strdisplaywidth(line))
 	end
-	
+
+	local width = math.min(max_width + 2, max_width_limit)
+	local height = math.min(#formatted + 2, opts.max_height or 15)
+
+	local preview_float = nil
+	local function cleanup_preview()
+		if not preview_float then
+			return
+		end
+		if preview_float.close then
+			preview_float.close()
+		elseif preview_float.win and vim.api.nvim_win_is_valid(preview_float.win) then
+			vim.api.nvim_win_close(preview_float.win, true)
+		end
+		preview_float = nil
+	end
+
+	local highlight_ns = vim.api.nvim_create_namespace('alchemy_selector')
+	local closed = false
+
+	local function safe_call(cb, ...)
+		if not cb then
+			return true
+		end
+		local ok, err = pcall(cb, ...)
+		if not ok then
+			M.notify(tostring(err), vim.log.levels.ERROR)
+		end
+		return ok
+	end
+
 	local float = M.create_float({
 		title = opts.title,
 		width = width,
 		height = height,
-		cursor_relative = opts.cursor_relative ~= false, -- default to cursor relative
-		border = "single",
-		on_close = cleanup_preview,
-	})
-	
-	-- Format items compactly
-	local lines = {}
-	for i, item in ipairs(items) do
-		local icon = item.icon or M.get_icon_for_type(item.type)
-		local text = item.text or item.name or tostring(item)
-		
-		-- Truncate long text
-		if #text > width - 6 then
-			text = text:sub(1, width - 9) .. "..."
-		end
-		
-		table.insert(lines, string.format(" %s %s", icon, text))
-	end
-	
-	-- Set content
-	vim.api.nvim_buf_set_lines(float.buf, 0, -1, false, lines)
-	
-	-- Make read-only
-	vim.api.nvim_buf_set_option(float.buf, "modifiable", false)
-	
-	-- Track current selection
-	local current_line = 1
-	vim.api.nvim_win_set_cursor(float.win, { current_line, 0 })
-	
-	-- Update selection and show preview
-	local function update_selection(new_line)
-		current_line = new_line
-		if current_line < 1 then
-			current_line = #items
-		elseif current_line > #items then
-			current_line = 1
-		end
-		
-		-- Move cursor
-		vim.api.nvim_win_set_cursor(float.win, { current_line, 0 })
-		
-		-- Close previous preview
-		cleanup_preview()
-		
-		-- Show new preview if enabled
-		if opts.on_preview then
-			local preview_content = opts.on_preview(items[current_line], current_line)
-			if preview_content then
-				preview_win = M.create_preview_popup(preview_content, {
-					anchor_win = float.win,
-					anchor_row = current_line - 1,
-				})
+		cursor_relative = opts.cursor_relative ~= false,
+		border = opts.border or 'single',
+		close_keys = {},
+		on_close = function()
+			if closed then
+				return
 			end
-		end
+			closed = true
+			cleanup_preview()
+			safe_call(opts.on_close)
+			if vim.api.nvim_win_is_valid(origin_win) then
+				vim.api.nvim_set_current_win(origin_win)
+			end
+		end,
+	})
+
+	local buf, win = float.buf, float.win
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.tbl_map(function(entry)
+		return entry.line
+	end, formatted))
+	vim.api.nvim_buf_set_option(buf, 'modifiable', false)
+
+	local current = opts.initial_index or 1
+	if current < 1 or current > #formatted then
+		current = 1
 	end
-	
-	-- Navigation with hjkl
-	vim.api.nvim_buf_set_keymap(float.buf, "n", "j", "", {
-		noremap = true,
-		silent = true,
-		callback = function() update_selection(current_line + 1) end,
-	})
-	
-	vim.api.nvim_buf_set_keymap(float.buf, "n", "k", "", {
-		noremap = true,
-		silent = true,
-		callback = function() update_selection(current_line - 1) end,
-	})
-	
-	-- Enter/l to select
-	local function select_current()
-		-- Close preview
+
+	local function highlight_current()
+		vim.api.nvim_buf_clear_namespace(buf, highlight_ns, 0, -1)
+		vim.api.nvim_buf_add_highlight(buf, highlight_ns, 'Visual', current - 1, 0, -1)
+	end
+
+	local function focus_current()
+		if vim.api.nvim_win_is_valid(win) then
+			vim.api.nvim_win_set_cursor(win, { current, 0 })
+		end
+		highlight_current()
+	end
+
+	local function open_preview()
 		cleanup_preview()
-		
-		vim.api.nvim_win_close(float.win, true)
+		if not opts.on_preview then
+			return
+		end
+		local ok, preview_content = pcall(opts.on_preview, formatted[current].item, current)
+		if not ok then
+			M.notify('Preview failed: ' .. tostring(preview_content), vim.log.levels.ERROR)
+			return
+		end
+		if not preview_content or preview_content == '' then
+			return
+		end
+		if type(preview_content) == 'table' and preview_content.win and vim.api.nvim_win_is_valid(preview_content.win) then
+			preview_float = preview_content
+			return
+		end
+		local preview_text = type(preview_content) == 'table' and vim.inspect(preview_content) or tostring(preview_content)
+		preview_float = M.create_preview_popup(preview_text, {
+			anchor_win = win,
+			anchor_row = current - 1,
+		})
+	end
+
+	local function move_cursor(delta)
+		current = current + delta
+		if current < 1 then
+			current = #formatted
+		elseif current > #formatted then
+			current = 1
+		end
+		focus_current()
+		open_preview()
+	end
+
+	local function close_menu()
+		if closed then
+			return
+		end
+		float.close()
+	end
+
+	local function select_current()
+		local entry = formatted[current].item
+		close_menu()
 		if opts.on_select then
-			opts.on_select(items[current_line], current_line)
+			vim.schedule(function()
+				safe_call(opts.on_select, entry, current)
+			end)
 		end
 	end
-	
-	vim.api.nvim_buf_set_keymap(float.buf, "n", "<CR>", "", {
-		noremap = true,
-		silent = true,
-		callback = select_current,
-	})
-	
-	vim.api.nvim_buf_set_keymap(float.buf, "n", "l", "", {
-		noremap = true,
-		silent = true,
-		callback = select_current,
-	})
-	
-	-- h to go back (if parent callback provided)
+
+	local key_opts = { buffer = buf, silent = true, nowait = true }
+	for _, key in ipairs({ 'j', '<Down>' }) do
+		vim.keymap.set('n', key, function()
+			move_cursor(1)
+		end, key_opts)
+	end
+	for _, key in ipairs({ 'k', '<Up>' }) do
+		vim.keymap.set('n', key, function()
+			move_cursor(-1)
+		end, key_opts)
+	end
+	vim.keymap.set('n', '<C-n>', function()
+		move_cursor(1)
+	end, key_opts)
+	vim.keymap.set('n', '<C-p>', function()
+		move_cursor(-1)
+	end, key_opts)
+
+	for _, key in ipairs({ '<CR>', '<Space>', 'l' }) do
+		vim.keymap.set('n', key, select_current, key_opts)
+	end
+
+	for _, key in ipairs({ 'q', '<Esc>', '<C-c>' }) do
+		vim.keymap.set('n', key, close_menu, key_opts)
+	end
+
 	if opts.on_back then
-		vim.api.nvim_buf_set_keymap(float.buf, "n", "h", "", {
-			noremap = true,
-			silent = true,
-			callback = function()
-				-- Close preview
-				cleanup_preview()
-				
-				vim.api.nvim_win_close(float.win, true)
-				opts.on_back()
-			end,
-		})
+		vim.keymap.set('n', 'h', function()
+			close_menu()
+			vim.schedule(function()
+				safe_call(opts.on_back)
+			end)
+		end, key_opts)
 	end
-	
-	-- Number key shortcuts
-	for i = 1, math.min(9, #items) do
-		vim.api.nvim_buf_set_keymap(float.buf, "n", tostring(i), "", {
-			noremap = true,
-			silent = true,
-			callback = function()
-				update_selection(i)
-				select_current()
-			end,
-		})
+
+	for i = 1, math.min(9, #formatted) do
+		vim.keymap.set('n', tostring(i), function()
+			current = i
+			focus_current()
+			open_preview()
+			select_current()
+		end, key_opts)
 	end
-	
-	-- Focus the window
-	vim.api.nvim_set_current_win(float.win)
-	
-	-- Initial preview
-	if opts.on_preview then
-		update_selection(1)
-	end
-	
+
+	focus_current()
+	open_preview()
+	vim.api.nvim_set_current_win(win)
+
 	return float
 end
 
 -- Create a small preview popup next to the main menu
 function M.create_preview_popup(content, opts)
 	opts = opts or {}
-	
-	-- Small preview window
-	local lines = vim.split(content, "\n")
+
+	local lines
+	if type(content) == 'table' then
+		lines = {}
+		for i, line in ipairs(content) do
+			lines[i] = tostring(line)
+		end
+	else
+		lines = vim.split(tostring(content), '\n')
+	end
+
 	local width = 0
 	for _, line in ipairs(lines) do
-		width = math.max(width, #line)
+		width = math.max(width, vim.fn.strdisplaywidth(line))
 	end
-	width = math.min(width + 2, 40)
-	
-	local height = math.min(#lines + 2, 10)
-	
-	-- Position to the right of the anchor
-	local anchor_info = vim.api.nvim_win_get_config(opts.anchor_win)
-	local row = anchor_info.row + (opts.anchor_row or 0)
-	local col = anchor_info.col + anchor_info.width + 2
-	
+	width = math.min(width + 2, opts.max_width or 60)
+	local height = math.min(#lines + 2, opts.max_height or 15)
+
+	local anchor_win = opts.anchor_win or vim.api.nvim_get_current_win()
+	local anchor = vim.api.nvim_win_get_config(anchor_win)
+	local function resolve(value)
+		if type(value) == 'table' then
+			return value[1] or 0
+		end
+		return value or 0
+	end
+
+	local anchor_width = anchor.width or vim.api.nvim_win_get_width(anchor_win)
+	local row = resolve(anchor.row) + (opts.anchor_row or 0)
+	local col = resolve(anchor.col) + anchor_width + (opts.col_offset or 2)
+
 	local float = M.create_float({
-		width = width,
-		height = height,
+		relative = anchor.relative or 'editor',
 		row = row,
 		col = col,
-		border = "single",
-		title = " Preview ",
+		width = width,
+		height = height,
+		border = opts.border or 'single',
+		title = opts.title or ' Preview ',
+		close_keys = {},
 	})
-	
-	-- Add content with padding
-	local padded_lines = {}
+
+	local padded = {}
 	for _, line in ipairs(lines) do
-		table.insert(padded_lines, " " .. line)
+		table.insert(padded, ' ' .. line)
 	end
-	
-	vim.api.nvim_buf_set_lines(float.buf, 0, -1, false, padded_lines)
-	vim.api.nvim_buf_set_option(float.buf, "modifiable", false)
-	
+	vim.api.nvim_buf_set_lines(float.buf, 0, -1, false, padded)
+	vim.api.nvim_buf_set_option(float.buf, 'modifiable', false)
+
 	return float
 end
 

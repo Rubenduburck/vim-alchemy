@@ -5,23 +5,129 @@ local M = {}
 
 local Config = require("alchemy.config")
 
+local VISUAL_MODES = {
+	["v"] = true,
+	["V"] = true,
+	["\22"] = true,
+}
+
+local function is_visual_mode(mode)
+	return VISUAL_MODES[mode] or false
+end
+
+local function get_visual_marks()
+	local start_pos = vim.fn.getpos("'<")
+	local end_pos = vim.fn.getpos("'>")
+
+	local start_line, start_col = start_pos[2], start_pos[3]
+	local end_line, end_col = end_pos[2], end_pos[3]
+
+	if start_line == 0 and end_line == 0 then
+		return nil
+	end
+
+	if start_line == end_line and start_col == end_col then
+		return nil
+	end
+
+	if start_line > end_line or (start_line == end_line and start_col > end_col) then
+		start_line, end_line = end_line, start_line
+		start_col, end_col = end_col, start_col
+	end
+
+	return {
+		start_line = start_line,
+		start_col = start_col,
+		end_line = end_line,
+		end_col = end_col,
+	}
+end
+
+local function cursor_within_marks(range, mode)
+	if not range then
+		return false
+	end
+
+	local cursor = vim.api.nvim_win_get_cursor(0)
+	local cursor_line = cursor[1]
+	local cursor_col = cursor[2] + 1 -- convert to 1-based
+
+	if cursor_line < range.start_line or cursor_line > range.end_line then
+		return false
+	end
+
+	if mode == "V" then
+		return true
+	end
+
+	if cursor_line == range.start_line and cursor_col < range.start_col then
+		return false
+	end
+
+	local effective_end_col = range.end_col
+	if vim.o.selection ~= "inclusive" and effective_end_col > range.start_col then
+		effective_end_col = effective_end_col - 1
+	end
+
+	if cursor_line == range.end_line and cursor_col > effective_end_col then
+		return false
+	end
+
+	return true
+end
+
+local function exit_visual_mode()
+	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
+	vim.api.nvim_feedkeys(esc, "nx", false)
+end
+
 -- Get text under cursor or visual selection
 function M.get_text_selection()
 	local mode = vim.fn.mode()
 
-	if mode == "v" or mode == "V" or mode == "\22" then
-		-- Visual mode - get selected text
-		return M.get_visual_selection()
-	else
-		-- Normal mode - get WORD under cursor
-		return M.get_word_under_cursor()
+	if is_visual_mode(mode) then
+		local selection = M.get_visual_selection({ mode = mode })
+		exit_visual_mode()
+		return selection
 	end
+
+	local last_visual_mode = vim.fn.visualmode()
+	if is_visual_mode(last_visual_mode) then
+		local marks = get_visual_marks()
+		if cursor_within_marks(marks, last_visual_mode) then
+			exit_visual_mode()
+			return M.get_visual_selection({ mode = last_visual_mode, marks = marks })
+		end
+	end
+
+	return M.get_word_under_cursor()
 end
 
 -- Get visual selection (existing implementation)
-function M.get_visual_selection()
-	local line_start, column_start = vim.fn.getpos("'<")[2], vim.fn.getpos("'<")[3]
-	local line_end, column_end = vim.fn.getpos("'>")[2], vim.fn.getpos("'>")[3]
+
+local function sanitize_marks(marks)
+	if marks then
+		return marks.start_line, marks.start_col, marks.end_line, marks.end_col
+	end
+	local start_pos = vim.fn.getpos("'<")
+	local end_pos = vim.fn.getpos("'>")
+	return start_pos[2], start_pos[3], end_pos[2], end_pos[3]
+end
+
+function M.get_visual_selection(opts)
+	ops = opts or {}
+	local line_start, column_start, line_end, column_end = sanitize_marks(opts.marks)
+
+	if not line_start or line_start == 0 or not line_end or line_end == 0 then
+		return {
+			text = "",
+			start_line = nil,
+			start_col = nil,
+			end_line = nil,
+			end_col = nil,
+		}
+	end
+
 	local lines = vim.fn.getline(line_start, line_end)
 
 	if type(lines) == "string" then
@@ -186,7 +292,7 @@ function M.classify_and_convert(text, output_encoding)
 	local simple_args = { "convert", "-o", output_encoding, text }
 	local ok, result = pcall(M.execute_cli, simple_args, false)
 	
-	if ok and result and result ~= "0x0" and result ~= "" then
+	if ok and result and result ~= "" then
 		return result
 	end
 	
@@ -196,11 +302,10 @@ function M.classify_and_convert(text, output_encoding)
 	
 	if ok and type(result) == "table" then
 		-- Find the best conversion result from the JSON response
-		for input_type, conversions in pairs(result) do
+		for _, conversions in pairs(result) do
 			if conversions[output_encoding] and conversions[output_encoding].output then
 				local output = conversions[output_encoding].output
-				-- Skip obviously wrong results
-				if output ~= "0x0" and output ~= "" then
+				if output ~= "" then
 					return output
 				end
 			end
@@ -211,4 +316,3 @@ function M.classify_and_convert(text, output_encoding)
 end
 
 return M
-

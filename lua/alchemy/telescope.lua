@@ -14,6 +14,8 @@ end
 
 -- Create a telescope picker for conversions
 function M.conversion_picker(text_selection)
+	text_selection = text_selection or Core.get_text_selection()
+
 	if not has_telescope() then
 		-- Fall back to our custom UI
 		Preview.show_conversion_explorer(text_selection)
@@ -25,8 +27,6 @@ function M.conversion_picker(text_selection)
 	local conf = require("telescope.config").values
 	local actions = require("telescope.actions")
 	local action_state = require("telescope.actions.state")
-
-	text_selection = text_selection or Core.get_text_selection()
 
 	if not text_selection.text or text_selection.text == "" then
 		UI.notify("No text to convert", vim.log.levels.WARN)
@@ -179,6 +179,8 @@ end
 
 -- Create a classification picker
 function M.classification_picker(text_selection)
+	text_selection = text_selection or Core.get_text_selection()
+
 	if not has_telescope() then
 		-- Fall back to our custom UI
 		local ok, classifications = pcall(Core.classify, text_selection.text)
@@ -187,8 +189,6 @@ function M.classification_picker(text_selection)
 		end
 		return
 	end
-
-	text_selection = text_selection or Core.get_text_selection()
 
 	if not text_selection.text or text_selection.text == "" then
 		UI.notify("No text to classify", vim.log.levels.WARN)

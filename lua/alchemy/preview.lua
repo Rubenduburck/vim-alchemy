@@ -127,10 +127,15 @@ end
 
 -- Close any active preview
 function M.close_preview()
-	if preview_win and vim.api.nvim_win_is_valid(preview_win.win) then
-		vim.api.nvim_win_close(preview_win.win, true)
-		preview_win = nil
+	if not preview_win then
+		return
 	end
+	if preview_win.close then
+		preview_win.close()
+	elseif preview_win.win and vim.api.nvim_win_is_valid(preview_win.win) then
+		vim.api.nvim_win_close(preview_win.win, true)
+	end
+	preview_win = nil
 end
 
 -- Smart classification display with confidence bars

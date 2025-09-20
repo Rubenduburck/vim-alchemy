@@ -6,6 +6,9 @@ local M = {}
 local Core = require("alchemy.core")
 local Picker = require("alchemy.picker")
 
+local ASYNC_OP = {}
+M.ASYNC_OP = ASYNC_OP
+
 -- Main explorer interface
 function M.explore_conversions(text_selection)
 	text_selection = text_selection or Core.get_text_selection()
@@ -180,28 +183,28 @@ function M.show_conversions_for_encoding(text_selection, input_encoding)
 			type = "array",
 			name = "Chunk array",
 			action = function()
-				return M.chunk_array_interactive(text_selection.text)
+				return M.chunk_array_interactive(text_selection)
 			end,
 		})
 		table.insert(operations, {
 			type = "array",
 			name = "Rotate array",
 			action = function()
-				return M.rotate_array_interactive(text_selection.text)
+				return M.rotate_array_interactive(text_selection)
 			end,
 		})
 		table.insert(operations, {
 			type = "array",
 			name = "Pad left",
 			action = function()
-				return M.pad_left_interactive(text_selection.text)
+				return M.pad_left_interactive(text_selection)
 			end,
 		})
 		table.insert(operations, {
 			type = "array",
 			name = "Pad right",
 			action = function()
-				return M.pad_right_interactive(text_selection.text)
+				return M.pad_right_interactive(text_selection)
 			end,
 		})
 	end
@@ -226,7 +229,16 @@ function M.show_conversions_for_encoding(text_selection, input_encoding)
 		vim.notify(string.format("Executing: %s", selected_op.name))
 
 		local ok, result = pcall(selected_op.action)
-		if ok and result and result ~= "" then
+		if not ok then
+			vim.notify(string.format("Operation failed: %s", result or "unknown error"), vim.log.levels.ERROR)
+			return
+		end
+
+		if result == ASYNC_OP then
+			return
+		end
+
+		if result and result ~= "" then
 			Core.replace_text(text_selection, result)
 			vim.notify(string.format("%s: %s", selected_op.name, result))
 		else
@@ -303,60 +315,115 @@ function M.flatten_array(text)
 end
 
 -- Interactive chunk array
-function M.chunk_array_interactive(text)
+function M.chunk_array_interactive(selection)
 	vim.ui.input({ prompt = "Chunk size: " }, function(size)
-		if size and tonumber(size) then
-			local args = { "array", "chunk", "-c", size, text }
-			local ok, result = pcall(Core.execute_cli, args, false)
-			if ok then
-				return result
-			end
+		if not size or not tonumber(size) then
+			vim.schedule(function()
+				vim.notify("Invalid chunk size", vim.log.levels.WARN)
+			end)
+			return
 		end
-		return nil
+
+		local args = { "array", "chunk", "-c", size, selection.text }
+		local ok, result = pcall(Core.execute_cli, args, false)
+		if not ok or not result or result == "" then
+			vim.schedule(function()
+				vim.notify("Failed to chunk array: " .. (result or "unknown error"), vim.log.levels.ERROR)
+			end)
+			return
+		end
+
+		vim.schedule(function()
+			Core.replace_text(selection, result)
+			vim.notify(string.format("Array chunked into groups of %s", size), vim.log.levels.INFO)
+		end)
 	end)
+
+	return ASYNC_OP
 end
 
 -- Interactive rotate array
-function M.rotate_array_interactive(text)
+function M.rotate_array_interactive(selection)
 	vim.ui.input({ prompt = "Rotate by: " }, function(amount)
-		if amount and tonumber(amount) then
-			local args = { "array", "rotate", "-r", amount, text }
-			local ok, result = pcall(Core.execute_cli, args, false)
-			if ok then
-				return result
-			end
+		if not amount or not tonumber(amount) then
+			vim.schedule(function()
+				vim.notify("Invalid rotation amount", vim.log.levels.WARN)
+			end)
+			return
 		end
-		return nil
+
+		local args = { "array", "rotate", "-r", amount, selection.text }
+		local ok, result = pcall(Core.execute_cli, args, false)
+		if not ok or not result or result == "" then
+			vim.schedule(function()
+				vim.notify("Failed to rotate array: " .. (result or "unknown error"), vim.log.levels.ERROR)
+			end)
+			return
+		end
+
+		vim.schedule(function()
+			Core.replace_text(selection, result)
+			vim.notify(string.format("Array rotated by %s", amount), vim.log.levels.INFO)
+		end)
 	end)
+
+	return ASYNC_OP
 end
 
 -- Interactive pad left
-function M.pad_left_interactive(text)
+function M.pad_left_interactive(selection)
 	vim.ui.input({ prompt = "Pad to size: " }, function(size)
-		if size and tonumber(size) then
-			local args = { "pad", "-s", "left", "-p", size, text }
-			local ok, result = pcall(Core.execute_cli, args, false)
-			if ok then
-				return result
-			end
+		if not size or not tonumber(size) then
+			vim.schedule(function()
+				vim.notify("Invalid padding size", vim.log.levels.WARN)
+			end)
+			return
 		end
-		return nil
+
+		local args = { "pad", "-s", "left", "-p", size, selection.text }
+		local ok, result = pcall(Core.execute_cli, args, false)
+		if not ok or not result or result == "" then
+			vim.schedule(function()
+				vim.notify("Failed to pad left: " .. (result or "unknown error"), vim.log.levels.ERROR)
+			end)
+			return
+		end
+
+		vim.schedule(function()
+			Core.replace_text(selection, result)
+			vim.notify(string.format("Padded left to %s", size), vim.log.levels.INFO)
+		end)
 	end)
+
+	return ASYNC_OP
 end
 
 -- Interactive pad right
-function M.pad_right_interactive(text)
+function M.pad_right_interactive(selection)
 	vim.ui.input({ prompt = "Pad to size: " }, function(size)
-		if size and tonumber(size) then
-			local args = { "pad", "-s", "right", "-p", size, text }
-			local ok, result = pcall(Core.execute_cli, args, false)
-			if ok then
-				return result
-			end
+		if not size or not tonumber(size) then
+			vim.schedule(function()
+				vim.notify("Invalid padding size", vim.log.levels.WARN)
+			end)
+			return
 		end
-		return nil
+
+		local args = { "pad", "-s", "right", "-p", size, selection.text }
+		local ok, result = pcall(Core.execute_cli, args, false)
+		if not ok or not result or result == "" then
+			vim.schedule(function()
+				vim.notify("Failed to pad right: " .. (result or "unknown error"), vim.log.levels.ERROR)
+			end)
+			return
+		end
+
+		vim.schedule(function()
+			Core.replace_text(selection, result)
+			vim.notify(string.format("Padded right to %s", size), vim.log.levels.INFO)
+		end)
 	end)
+
+	return ASYNC_OP
 end
 
 return M
-
